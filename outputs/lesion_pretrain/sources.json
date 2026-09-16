@@ -1,0 +1,20 @@
+{
+  "idrid": {
+    "images": 81,
+    "masks_per_channel": {
+      "MA": 81,
+      "HE": 80,
+      "EX_H": 81,
+      "EX_S": 40
+    }
+  },
+  "ddr": {
+    "images": 757,
+    "masks_per_channel": {
+      "MA": 757,
+      "HE": 757,
+      "EX_H": 757,
+      "EX_S": 757
+    }
+  }
+}

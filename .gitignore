@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# Environments
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Data (~10 GB) - regenerate with scripts/01_download_data.py + 02_preprocess.py
+# ---------------------------------------------------------------------------
+data/
+*.npy
+*.zip
+*.pkl
+
+# ---------------------------------------------------------------------------
+# Model weights - exceed GitHub's 100 MB per-file limit (best.pt is 124 MB).
+# Regenerate with scripts/03_train.py, or attach to a GitHub Release.
+# The small JSON results in outputs/ ARE tracked: they are the evidence.
+# ---------------------------------------------------------------------------
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.onnx.data
+*.safetensors
+
+# ---------------------------------------------------------------------------
+# Credentials - never commit these
+# ---------------------------------------------------------------------------
+kaggle.json
+.env
+*.key
+*.pem
+
+# ---------------------------------------------------------------------------
+# OS / editor cruft
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

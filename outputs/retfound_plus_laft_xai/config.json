@@ -1,0 +1,277 @@
+{
+  "quality": {
+    "tau_r": 0.32,
+    "tau_d": 0.6,
+    "blur_ref": 220.0,
+    "weights": {
+      "quality": 0.3,
+      "domain": 0.1,
+      "lesion": 0.25,
+      "blur": 0.2,
+      "illumination": 0.15
+    },
+    "quality_sub": {
+      "gradability": 0.5,
+      "artifact": 0.28,
+      "fov": 0.22
+    },
+    "domain_ref": {
+      "rg_ratio": 1.95,
+      "rg_sd": 0.45,
+      "fill": 0.74,
+      "fill_sd": 0.14,
+      "sat": 0.42,
+      "sat_sd": 0.16
+    },
+    "lesion_floor_cnr": 6.0,
+    "lesion_ref_cnr": 20.0
+  },
+  "preproc": {
+    "cache_size": 1024,
+    "global_size": 448,
+    "crop_size": 320,
+    "crop_input": 224,
+    "n_crops": 6,
+    "crop_jitter": 0.12,
+    "clahe_clip": 2.5,
+    "clahe_grid": 8,
+    "illum_sigma": 25.0,
+    "fusion_gamma": 0.6,
+    "alpp_enabled": true,
+    "alpp_gate_dim": 64,
+    "alpp_branches": [
+      "norm",
+      "contrast",
+      "vessel",
+      "lesion"
+    ],
+    "alpp_prior": [
+      1.2,
+      0.6,
+      0.3,
+      0.3
+    ],
+    "enhancement_algorithm": "clahe",
+    "local_contrast_sigma": 40.0,
+    "local_contrast_strength": 0.8,
+    "clahe_protect_large_lesions": true,
+    "large_lesion_kernel": 41,
+    "large_lesion_protect_strength": 0.6,
+    "raw_pixels": false
+  },
+  "moe": {
+    "experts": [
+      "MA",
+      "HE",
+      "EX_H",
+      "EX_S",
+      "NV",
+      "ME"
+    ],
+    "expert_dim": 128,
+    "lesion_dim": 256,
+    "mask_size": 112,
+    "gate_hidden": 128,
+    "gate_temperature": 1.0,
+    "gate_context": [
+      "global",
+      "lesion",
+      "quality",
+      "hardness"
+    ],
+    "use_crop_evidence": true
+  },
+  "backbone": {
+    "name": "vit_large_patch16_224",
+    "retfound_ckpt": "bitfount/RETFound_MAE:pytorch_model.bin",
+    "retfound_fallback": "YukunZhou/RETFound_mae_natureCFP:RETFound_mae_natureCFP.pth",
+    "require_retfound": true,
+    "pretrained": false,
+    "freeze_backbone": true,
+    "share_local_backbone": true,
+    "lora_rank_min": 2,
+    "lora_rank_max": 16,
+    "lora_alpha": 16.0,
+    "lora_dropout": 0.05,
+    "lora_targets": [
+      "qkv",
+      "proj"
+    ],
+    "lam_grad": 0.35,
+    "lam_lesion": 0.45,
+    "lam_attn": 0.2,
+    "lesion_layer_boost": 0.85
+  },
+  "fusion": {
+    "n_heads": 8,
+    "anatomy_regions": [
+      "optic_disc",
+      "macula",
+      "sup_arcade",
+      "inf_arcade",
+      "peripheral"
+    ],
+    "gnn_layers": 2,
+    "knn": 6,
+    "fused_dim": 384,
+    "bidirectional": true,
+    "probe_dim": 128
+  },
+  "head": {
+    "n_grades": 5,
+    "horizons": [
+      6,
+      12,
+      24,
+      60
+    ],
+    "clinical_dim": 8,
+    "dropout": 0.1,
+    "hierarchy": [
+      "any_dr",
+      "referable",
+      "stdr",
+      "pdr"
+    ],
+    "hierarchy_thresholds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "proj_dim": 128
+  },
+  "xai": {
+    "counterfactual_blur": 25,
+    "weight_schedule": [
+      0.05,
+      0.05,
+      0.05,
+      0.05
+    ],
+    "ramp_within_stage": true,
+    "grounding_topk": 3
+  },
+  "uncertainty": {
+    "mc_samples": 10,
+    "entropy_hi": 0.85,
+    "calibrator": "temperature"
+  },
+  "screening": {
+    "task_grade": 3,
+    "npv_target": 0.985,
+    "auc_tiebreak": 0.25
+  },
+  "loss": {
+    "learned_weights": true,
+    "use_dqk_loss": true,
+    "w_dqk": 0.5,
+    "w_ordinal": 1.0,
+    "w_hierarchical": 0.5,
+    "w_boundary": 0.2,
+    "w_contrastive": 0.2,
+    "w_lesion": 0.3,
+    "w_pa": 0.1,
+    "w_cbf": 0.3,
+    "focal_gamma": 2.0,
+    "cb_beta": 0.999,
+    "boundary_gamma": 1.5,
+    "contrastive_temp": 0.1
+  },
+  "sampling": {
+    "power": -0.5,
+    "hard_eta": 0.5,
+    "hard_eps": 0.001,
+    "hard_ema": 0.7,
+    "hard_clip": 4.0,
+    "boundary_bonus": 0.6,
+    "lowconf_bonus": 0.4,
+    "class_weight_power": -0.25
+  },
+  "train": {
+    "stages": [
+      {
+        "name": "s1_frozen",
+        "epochs": 5,
+        "train_backbone": false,
+        "train_lora": false,
+        "unfreeze_frac": 0.0,
+        "head_lr": 0.0001,
+        "lora_lr": 0.0,
+        "backbone_lr": 0.0,
+        "train_alpp": false
+      },
+      {
+        "name": "s2_lora",
+        "epochs": 12,
+        "train_backbone": false,
+        "train_lora": true,
+        "unfreeze_frac": 0.0,
+        "head_lr": 0.0001,
+        "lora_lr": 5e-05,
+        "backbone_lr": 0.0,
+        "train_alpp": true
+      },
+      {
+        "name": "s3_unfreeze",
+        "epochs": 14,
+        "train_backbone": true,
+        "train_lora": true,
+        "unfreeze_frac": 0.33,
+        "head_lr": 5e-05,
+        "lora_lr": 5e-05,
+        "backbone_lr": 5e-06,
+        "train_alpp": true
+      },
+      {
+        "name": "s4_full",
+        "epochs": 14,
+        "train_backbone": true,
+        "train_lora": true,
+        "unfreeze_frac": 1.0,
+        "head_lr": 2e-05,
+        "lora_lr": 2e-05,
+        "backbone_lr": 5e-06,
+        "train_alpp": true
+      }
+    ],
+    "batch_size": 4,
+    "weight_decay": 0.02,
+    "warmup_frac": 0.1,
+    "num_workers": 16,
+    "seed": 1337,
+    "max_train": null,
+    "max_val": null,
+    "samples_per_epoch": null,
+    "grad_clip": 1.0,
+    "grad_accum": 8,
+    "select_objective": "ordinal",
+    "select_weights": {
+      "qwk": 0.5,
+      "macro_f1": 0.3,
+      "minority_recall": 0.2
+    },
+    "minority_grades": [
+      1,
+      2,
+      3
+    ],
+    "patience": 8,
+    "lesion_pretrain_epochs": 8,
+    "lesion_pretrain_lr": 0.0003,
+    "init_ladder_from_prior": true,
+    "ladder_lr_mult": 10.0,
+    "amp": true,
+    "ema_decay": 0.995
+  },
+  "domain_adapt": {
+    "enabled": true,
+    "n_domains": 2,
+    "hidden": 128,
+    "dropout": 0.1,
+    "grl_gamma": 10.0,
+    "loss_weight": 0.1
+  },
+  "device": "auto",
+  "ablate": []
+}

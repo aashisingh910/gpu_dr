@@ -1,0 +1,15 @@
+torch>=2.2
+torchvision>=0.17
+timm>=0.9.16
+opencv-python-headless>=4.9
+scikit-learn>=1.4
+scikit-image>=0.22
+pandas>=2.0
+numpy>=1.26
+matplotlib>=3.8
+scipy>=1.11
+tqdm>=4.66
+Pillow>=10.0
+onnx>=1.15
+onnxruntime>=1.17
+kaggle>=1.6

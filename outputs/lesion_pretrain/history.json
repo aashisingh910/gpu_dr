@@ -1,0 +1,162 @@
+[
+  {
+    "epoch": 1,
+    "train_loss": 30.707891882693723,
+    "epoch_sec": 95.9,
+    "dice_MA": 0.0,
+    "dice_HE": 0.0,
+    "dice_EX_H": 0.13920166771877798,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.034800416929694496,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 2,
+    "train_loss": 2.50976720407661,
+    "epoch_sec": 80.9,
+    "dice_MA": 0.030419715055833654,
+    "dice_HE": 0.0009455226967658058,
+    "dice_EX_H": 0.33002379380364505,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.09034725788906113,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 3,
+    "train_loss": 2.240821138303378,
+    "epoch_sec": 80.7,
+    "dice_MA": 0.0330642060745867,
+    "dice_HE": 0.022294240654497588,
+    "dice_EX_H": 0.19218370001696736,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.06188553668651291,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 4,
+    "train_loss": 2.094665002901009,
+    "epoch_sec": 82.8,
+    "dice_MA": 0.08115838398283876,
+    "dice_HE": 0.02094127266204457,
+    "dice_EX_H": 0.31449820811550266,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.10414946619009649,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 5,
+    "train_loss": 2.0033256150363536,
+    "epoch_sec": 82.3,
+    "dice_MA": 0.06389193136181089,
+    "dice_HE": 0.055255372729273125,
+    "dice_EX_H": 0.41991267576580604,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.1347649949642225,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 6,
+    "train_loss": 1.9438250305947293,
+    "epoch_sec": 82.4,
+    "dice_MA": 0.09528985507246376,
+    "dice_HE": 0.044079672363032285,
+    "dice_EX_H": 0.31747131747131746,
+    "dice_EX_S": 0.0018192844147968466,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.1146650323304026,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 7,
+    "train_loss": 1.904215879598807,
+    "epoch_sec": 82.8,
+    "dice_MA": 0.08621626516935338,
+    "dice_HE": 0.04618516755052785,
+    "dice_EX_H": 0.4210731082148047,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.1383686352336715,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  },
+  {
+    "epoch": 8,
+    "train_loss": 1.888188412517644,
+    "epoch_sec": 82.2,
+    "dice_MA": 0.09419770773638969,
+    "dice_HE": 0.04400411099691675,
+    "dice_EX_H": 0.42226241443256485,
+    "dice_EX_S": 0.0,
+    "dice_NV": NaN,
+    "dice_ME": NaN,
+    "dice_mean": 0.14011605829146784,
+    "_annotated_per_channel": [
+      756,
+      756,
+      756,
+      756,
+      0,
+      0
+    ]
+  }
+]
