@@ -1,7 +1,7 @@
 Diabetic Retinopathy Pipeline
 Implementation & Session Documentation
 
-Generated: 2026-09-18 13:50:27
+Generated: 2026-09-18 17:45:44
 Machine: DESKTOP-39I5E6Q (Windows 11)
 Project root: C:\Users\HP\Downloads\dr-project-python-fixed\dr-project-python-master
 This document records the work done to take the rebuilt dr/data/ package from an untested checkout to a
@@ -196,11 +196,11 @@ Last log lines:
 COMPLETE - 8 epochs run, best validation Dice 0.1401. Checkpoint: outputs/lesion_pretrain/lesion_encoder.pt
 
 -- 6.3  Staged Training
-IN PROGRESS / RESUMABLE - 1 epoch(s) checkpointed so far.
-Last completed epoch: 1  stage=s1_frozen  QWK=0.3505  score=0.3003
+IN PROGRESS / RESUMABLE - 4 epoch(s) checkpointed so far.
+Last completed epoch: 4  stage=s1_frozen  QWK=0.4033  score=0.3498
 
 -- 6.4  Disk / Environment
-Free disk space: 693.5 GB
+Free disk space: 719.4 GB
 GPU: NVIDIA GeForce RTX 5060 (8.5 GB VRAM)
 
 ==============================================================================
@@ -220,7 +220,7 @@ progress.
 ==============================================================================
 Appendix: Experiment Values Registry
 ==============================================================================
-Source: data\experiment_values.json, generated 2026-09-18T13:49:38. Every value below is read from a real
+Source: data\experiment_values.json, generated 2026-09-18T17:45:41. Every value below is read from a real
 config/log/output file at generation time; anything not yet computable is marked PENDING, and anything this
 codebase does not implement is marked NOT APPLICABLE, rather than estimated or invented.
 
@@ -592,17 +592,23 @@ separate EMD or margin loss terms - boundary_loss/contrastive_loss serve an anal
 epochs completed this run:
  stage | epoch | train_loss | qwk | f1_macro | min_recall | score | accuracy | ref_auc
  s1_frozen | 1 | 83.8989 | 0.3505 | 0.292 | 0.1872 | 0.3003 | 0.666 | 0.726
+ s1_frozen | 2 | 48.4253 | 0.4205 | 0.2865 | 0.1983 | 0.3359 | 0.6073 | 0.7778
+ s1_frozen | 3 | 33.6463 | 0.4408 | 0.2842 | 0.1676 | 0.3392 | 0.634 | 0.7935
+ s1_frozen | 4 | 27.291 | 0.4033 | 0.3012 | 0.2891 | 0.3498 | 0.5687 | 0.7996
 checkpoints saved this run:
  stage | epoch
  1 | 1
+ 1 | 2
+ 1 | 3
+ 1 | 4
 last live step:
  stage: 1
- epoch in stage: 2
- step: 225
+ epoch in stage: 5
+ step: 600
  total steps: 1500
- train loss: 58.1437
- throughput img s: 1.92
-monitoring time series file: data/training_monitor.csv (1 rows so far)
+ train loss: 25.6476
+ throughput img s: 1.77
+monitoring time series file: data/training_monitor.csv (44 rows so far)
 learning rate per step: NOT APPLICABLE - not implemented in this codebase (not logged per-step; per-stage
 LRs are in section 6 config)
 14 final dr grading metrics: PENDING - computed after training/evaluation completes (test-set
@@ -656,6 +662,6 @@ timm version: 1.0.29
 opencv version: 5.0.0
 python version: 3.14.7
 os: Windows-11-10.0.26200-SP0
-git commit: a2dc56776db27a0853d2bbcacb765e0f923283c2
-git commit short: a2dc567
+git commit: e2c2bca1492f08a83a2958e491eed3cf300bcac4
+git commit short: e2c2bca
 power plan: High performance (switched from Balanced this session)
