@@ -38,15 +38,11 @@ import sys
 import time
 from pathlib import Path
 
-# Cap BLAS/OpenMP threads per process BEFORE numpy/torch import (they read
-# these once, at import time). Prevents oversubscription with num_workers
-# DataLoader worker processes each otherwise trying to use every core for
-# their own numpy/cv2 calls - harmless if data loading was never the
-# bottleneck (it measurably wasn't for this run - see history.json), but
-# free insurance against it becoming one on a different machine/config.
-for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
-          "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
-    os.environ.setdefault(_v, "1")
+# NOTE: capping OMP_NUM_THREADS/MKL_NUM_THREADS/etc to 1 here was tried and
+# measured this session - it made real training ~25-30% SLOWER (1.5-1.58
+# img/s vs the ~2.0-2.1 img/s baseline at the same step range with 16
+# DataLoader workers), not faster. Deliberately not applied. See
+# outputs/session_report.pdf for the measurement.
 
 import numpy as np
 import torch

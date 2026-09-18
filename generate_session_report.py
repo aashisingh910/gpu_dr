@@ -35,7 +35,8 @@ OUT_TXT = ROOT / "outputs" / "session_report.txt"
 
 PAGE_W, PAGE_H = 8.27, 11.69   # A4, inches
 MARGIN_IN = 0.75
-LINE_IN = {9: 0.0195, 10: 0.021, 12: 0.026, 16: 0.034}
+LINE_IN = {6.8: 0.0155, 7.0: 0.016, 8.4: 0.0185, 8.8: 0.019,
+          9: 0.0195, 10: 0.021, 12: 0.026, 16: 0.034}
 
 
 class Doc:
@@ -114,7 +115,8 @@ class Doc:
         self.txt_lines.append("-- " + text)
 
     def para(self, text: str, size: int = 9, mono: bool = False,
-             indent: float = 0.0, color: str = "black", width: int = 108):
+             indent: float = 0.0, color: str = "black", width: int = 108,
+             bold: bool = False):
         w = width if not mono else int(width * 0.92)
         for raw_line in text.split("\n"):
             wrapped = textwrap.wrap(raw_line, width=w) or [""]
@@ -123,6 +125,7 @@ class Doc:
                 self._ensure(lh)
                 self.ax.text(MARGIN_IN / PAGE_W + indent, self.y, ln,
                              fontsize=size, va="top", color=color,
+                             fontweight=("bold" if bold else "normal"),
                              family="monospace" if mono else "sans-serif")
                 self.y -= lh
                 self.txt_lines.append(" " * int(indent * 60) + ln)
@@ -551,7 +554,54 @@ def build(pdf: PdfPages):
     D.bullet("Re-run this script (generate_session_report.py) at any "
             "point to refresh this document with current progress.")
 
+    # ------------------------------------------------------------------
+    _append_experiment_values_registry(D)
+
     D.close()
+
+
+def _append_experiment_values_registry(D: "Doc") -> None:
+    """Appendix: the full experiment-values registry (data/experiment_values.json,
+    produced by generate_experiment_values.py) - every real, verified value this
+    codebase and this run produce, plus explicit PENDING/NOT-APPLICABLE markers
+    for anything else. Generic renderer so this section always reflects
+    whatever the registry currently contains, with no manual upkeep here."""
+    reg_path = ROOT / "data" / "experiment_values.json"
+    reg = _read_json(reg_path)
+    if not reg:
+        return
+    D.h1("Appendix: Experiment Values Registry")
+    D.para(f"Source: {reg_path.relative_to(ROOT)}, generated {reg.get('generated', '?')}. "
+          "Every value below is read from a real config/log/output file at "
+          "generation time; anything not yet computable is marked PENDING, and "
+          "anything this codebase does not implement is marked NOT APPLICABLE, "
+          "rather than estimated or invented.", size=9)
+    for key, value in reg.items():
+        if key == "generated":
+            continue
+        _render_registry_value(D, key.replace("_", " "), value, depth=0)
+
+
+def _render_registry_value(D: "Doc", label: str, value, depth: int) -> None:
+    indent = 0.015 * depth
+    if isinstance(value, dict):
+        if depth == 0:
+            D.h2(label)
+        else:
+            D.para(label + ":", size=8.8, bold=True, indent=indent)
+        for k, v in value.items():
+            _render_registry_value(D, k.replace("_", " "), v, depth + 1)
+    elif isinstance(value, list) and value and all(isinstance(x, dict) for x in value):
+        D.para(label + ":", size=8.8, bold=True, indent=indent)
+        cols = list(value[0].keys())
+        D.para(" | ".join(cols), mono=True, size=7.0, indent=indent + 0.015)
+        for row in value:
+            D.para(" | ".join(str(row.get(c, "")) for c in cols),
+                  mono=True, size=6.8, indent=indent + 0.015)
+    elif isinstance(value, list):
+        D.para(f"{label}: {value}", size=8.4, indent=indent)
+    else:
+        D.para(f"{label}: {value}", size=8.4, indent=indent)
 
 
 def main() -> None:

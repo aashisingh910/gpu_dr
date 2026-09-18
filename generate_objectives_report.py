@@ -918,7 +918,54 @@ def build(pdf: PdfPages, ev: dict):
             "it at that point to replace every \"pending\" line above with "
             "the actual measured result.")
 
+    # ------------------------------------------------------------------
+    _append_experiment_values_registry(D)
+
     D.close()
+
+
+def _append_experiment_values_registry(D: "Doc") -> None:
+    """Appendix: the full experiment-values registry (data/experiment_values.json,
+    produced by generate_experiment_values.py) - every real, verified value this
+    codebase and this run produce, plus explicit PENDING/NOT-APPLICABLE markers
+    for anything else. Generic renderer so this section always reflects
+    whatever the registry currently contains, with no manual upkeep here."""
+    reg_path = ROOT / "data" / "experiment_values.json"
+    reg = _read_json(reg_path)
+    if not reg:
+        return
+    D.h1("Appendix: Experiment Values Registry")
+    D.para(f"Source: {reg_path.relative_to(ROOT)}, generated {reg.get('generated', '?')}. "
+          "Every value below is read from a real config/log/output file at "
+          "generation time; anything not yet computable is marked PENDING, and "
+          "anything this codebase does not implement is marked NOT APPLICABLE, "
+          "rather than estimated or invented.", size=9)
+    for key, value in reg.items():
+        if key == "generated":
+            continue
+        _render_registry_value(D, key.replace("_", " "), value, depth=0)
+
+
+def _render_registry_value(D: "Doc", label: str, value, depth: int) -> None:
+    indent = 0.015 * depth
+    if isinstance(value, dict):
+        if depth == 0:
+            D.h2(label)
+        else:
+            D.para(label + ":", size=8.8, bold=True, indent=indent)
+        for k, v in value.items():
+            _render_registry_value(D, k.replace("_", " "), v, depth + 1)
+    elif isinstance(value, list) and value and all(isinstance(x, dict) for x in value):
+        D.para(label + ":", size=8.8, bold=True, indent=indent)
+        cols = list(value[0].keys())
+        D.para(" | ".join(cols), mono=True, size=7.0, indent=indent + 0.015)
+        for row in value:
+            D.para(" | ".join(str(row.get(c, "")) for c in cols),
+                  mono=True, size=6.8, indent=indent + 0.015)
+    elif isinstance(value, list):
+        D.para(f"{label}: {value}", size=8.4, indent=indent)
+    else:
+        D.para(f"{label}: {value}", size=8.4, indent=indent)
 
 
 def main() -> None:
