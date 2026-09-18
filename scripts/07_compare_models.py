@@ -21,9 +21,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
+
+# see scripts/03_train.py for why these are set before numpy/torch import
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+          "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, "1")
 
 import numpy as np
 import torch
@@ -129,9 +135,14 @@ class BaselineNet(nn.Module):
         return self.head(self.backbone(x))
 
 
-def make_loaders(cache, batch_size, workers, max_train, seed, max_test=None):
-    tr = CachedEyePACS(cache, "train", augment=True)
-    te = CachedEyePACS(cache, "test", augment=False)
+def make_loaders(cache, batch_size, workers, max_train, seed, max_test=None, cfg=None):
+    # CachedEyePACS.cfg has no default - calling it without one (as this
+    # function did before) raises TypeError the instant make_loaders() is
+    # called, before a single baseline model ever runs.
+    if cfg is None:
+        cfg = default_config()
+    tr = CachedEyePACS(cache, "train", augment=True, cfg=cfg)
+    te = CachedEyePACS(cache, "test", augment=False, cfg=cfg)
     rng = np.random.default_rng(seed)
     if max_train and max_train < len(tr):
         tr.idx = rng.choice(tr.idx, max_train, replace=False)
@@ -145,9 +156,10 @@ def make_loaders(cache, batch_size, workers, max_train, seed, max_test=None):
     sampler = WeightedRandomSampler(torch.as_tensor(w, dtype=torch.double),
                                     len(labels), replacement=True)
     return (DataLoader(tr, batch_size=batch_size, sampler=sampler,
-                       num_workers=workers, drop_last=True),
+                       num_workers=workers, drop_last=True,
+                       pin_memory=torch.cuda.is_available()),
             DataLoader(te, batch_size=batch_size, shuffle=False,
-                       num_workers=workers),
+                       num_workers=workers, pin_memory=torch.cuda.is_available()),
             torch.as_tensor(np.bincount(labels, minlength=5).astype(np.float32)))
 
 
@@ -354,7 +366,7 @@ def main() -> None:
     keep = set(args.only.split(",")) if args.only else None
 
     loaders = make_loaders(args.cache, args.batch_size, args.workers,
-                           args.max_train, args.seed, args.max_test)
+                           args.max_train, args.seed, args.max_test, cfg=cfg)
     budget = {"epochs": args.epochs, "max_train": args.max_train,
               "max_test": args.max_test,
               "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed,

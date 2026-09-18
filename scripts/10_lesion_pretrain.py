@@ -42,6 +42,11 @@ import sys
 import time
 from pathlib import Path
 
+# see scripts/03_train.py for why these are set before numpy/torch import
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+          "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -184,8 +189,10 @@ def main() -> None:
               + " ".join(f"{n}={v:.4f}" for n, v in prev.items()))
 
     train_ld = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
-                          num_workers=args.workers, drop_last=len(train_ds) > args.batch_size)
-    val_ld = DataLoader(val_ds, batch_size=args.batch_size, num_workers=args.workers)
+                          num_workers=args.workers, drop_last=len(train_ds) > args.batch_size,
+                          pin_memory=(device.type == "cuda"))
+    val_ld = DataLoader(val_ds, batch_size=args.batch_size, num_workers=args.workers,
+                        pin_memory=(device.type == "cuda"))
 
     model = LesionMoE(cfg.moe).to(device)
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
