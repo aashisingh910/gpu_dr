@@ -31,6 +31,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
+from detailed_methodology import render_detailed_methodology
+
 ROOT = Path(__file__).resolve().parent
 OUT_PDF = ROOT / "outputs" / "objectives_fulfillment_report.pdf"
 OUT_TXT = ROOT / "outputs" / "objectives_fulfillment_report.txt"
@@ -917,6 +919,9 @@ def build(pdf: PdfPages, ev: dict):
     D.bullet("This report regenerates from live data on every run - re-run "
             "it at that point to replace every \"pending\" line above with "
             "the actual measured result.")
+
+    # ------------------------------------------------------------------
+    render_detailed_methodology(D)
 
     # ------------------------------------------------------------------
     _append_experiment_values_registry(D)

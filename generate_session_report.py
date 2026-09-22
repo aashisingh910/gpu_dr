@@ -29,6 +29,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from detailed_methodology import render_detailed_methodology
+
 ROOT = Path(__file__).resolve().parent
 OUT_PDF = ROOT / "outputs" / "session_report.pdf"
 OUT_TXT = ROOT / "outputs" / "session_report.txt"
@@ -553,6 +555,9 @@ def build(pdf: PdfPages):
             "consolidated.json / .csv first.")
     D.bullet("Re-run this script (generate_session_report.py) at any "
             "point to refresh this document with current progress.")
+
+    # ------------------------------------------------------------------
+    render_detailed_methodology(D)
 
     # ------------------------------------------------------------------
     _append_experiment_values_registry(D)
