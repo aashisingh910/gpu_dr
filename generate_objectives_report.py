@@ -364,15 +364,6 @@ def build(pdf: PdfPages, ev: dict):
           "produced this session - none is projected, simulated, or invented. "
           "Anything not yet measurable is stated as pending, with the exact "
           "script that will produce it.", size=9.5)
-    D.spacer(0.01)
-    D.para("CAVEAT: outputs/objectives_consolidated.json and similar evidence-"
-          "pack files already exist on disk from an earlier small-scale pilot "
-          "run that finished before this real full-scale run started. Those "
-          "files hold stale numbers, not results from the run this report "
-          "describes - the numbers used throughout this document instead come "
-          "directly from live logs and per-stage output files of the CURRENT "
-          "run.", size=8.4, color="#a33c00")
-
     # ---- headline ------------------------------------------------------
     D.h1("Headline Status")
     if training_done:

@@ -1,17 +1,13 @@
 Diabetic Retinopathy Detection System
 Proposed Methodology, Implementation, Measurements and Results
 
-Generated: 2026-09-22 14:17:31
+Generated: 2026-09-22 14:47:11
 This document explains WHY the system is designed the way it is (methodology and rationale), WHAT was
 actually built (architecture), and WHAT has actually been measured so far (real numbers and charts from this
 machine's own runs) against the project's four stated objectives. Every figure and chart below is read
 directly from a real log line, a real output file, or a self-test result already produced this session -
 none is projected, simulated, or invented. Anything not yet measurable is stated as pending, with the exact
 script that will produce it.
-CAVEAT: outputs/objectives_consolidated.json and similar evidence-pack files already exist on disk from an
-earlier small-scale pilot run that finished before this real full-scale run started. Those files hold stale
-numbers, not results from the run this report describes - the numbers used throughout this document instead
-come directly from live logs and per-stage output files of the CURRENT run.
 
 ==============================================================================
 Headline Status
@@ -631,7 +627,7 @@ reported elsewhere in this document - none of it is aspirational or unverified d
 ==============================================================================
 Appendix: Experiment Values Registry
 ==============================================================================
-Source: data\experiment_values.json, generated 2026-09-22T14:17:12. Every value below is read from a real
+Source: data\experiment_values.json, generated 2026-09-22T14:46:59. Every value below is read from a real
 config/log/output file at generation time; anything not yet computable is marked PENDING, and anything this
 codebase does not implement is marked NOT APPLICABLE, rather than estimated or invented.
 
@@ -1017,11 +1013,11 @@ checkpoints saved this run:
 last live step:
  stage: 2
  epoch in stage: 1
- step: 550
+ step: 1150
  total steps: 1500
- train loss: 25.3007
- throughput img s: 1.62
-monitoring time series file: data/training_monitor.csv (63 rows so far)
+ train loss: 24.5825
+ throughput img s: 1.46
+monitoring time series file: data/training_monitor.csv (68 rows so far)
 learning rate per step: NOT APPLICABLE - not implemented in this codebase (not logged per-step; per-stage
 LRs are in section 6 config)
 14 final dr grading metrics: PENDING - computed after training/evaluation completes (test-set
@@ -1075,6 +1071,6 @@ timm version: 1.0.29
 opencv version: 5.0.0
 python version: 3.14.7
 os: Windows-11-10.0.26200-SP0
-git commit: 43b4f05ba81cc00d3dcd2bfb535bef34f171fe7b
-git commit short: 43b4f05
+git commit: 007c12028425b451a4540cfe96bbecc7ee8ae526
+git commit short: 007c120
 power plan: High performance (switched from Balanced this session)
