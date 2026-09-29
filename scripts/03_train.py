@@ -703,6 +703,48 @@ def main() -> None:
     t_start = time.time()
     stop = False
 
+    # Writes the same payload shape whether called at true epoch-end or from
+    # mid-epoch (see MID_EPOCH_CKPT_EVERY below). `epoch_in_stage_value` is
+    # the index of the last epoch this checkpoint should be treated as having
+    # FULLY completed - passing `ep` at epoch-end means "epoch ep is done,
+    # resume at ep+1"; passing `ep - 1` mid-epoch means "epoch ep is still
+    # in progress, restart it from its own beginning on resume" while still
+    # keeping the model/optimizer/scheduler weights this call captured, so a
+    # restart mid-epoch loses only the time since the last periodic save
+    # instead of the entire epoch. `history`/`best`/`best_epoch`/`stale`/
+    # `hard` are only mutated after the full epoch's step loop finishes (see
+    # below), so reading them here mid-epoch correctly captures the PREVIOUS
+    # epoch's values, not a half-finished one.
+    def write_checkpoint(epoch_in_stage_value: int) -> None:
+        ckpt_payload = {
+            "stage_idx": si, "epoch_in_stage": epoch_in_stage_value,
+            "epoch_global": epoch_global,
+            "model": model.state_dict(), "optimizer": opt.state_dict(),
+            "scheduler": sched.state_dict(),
+            "ema_shadow": ([s.detach().cpu() for s in ema.shadow]
+                          if ema is not None else None),
+            "gla_lora_ranks": info["ranks"], "gla_lora_info": info,
+            "hard": {"hardness": hard.hardness, "seen": hard.seen,
+                     "boundary": hard.boundary, "lowconf": hard.lowconf},
+            "history": history, "best": best, "best_epoch": best_epoch,
+            "stale": stale,
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state_all": (torch.cuda.get_rng_state_all()
+                                   if torch.cuda.is_available() else None),
+            "numpy_rng_state": np.random.get_state(),
+            "args": vars(args),
+        }
+        tmp_ckpt = out_dir / "checkpoint.pt.tmp"
+        torch.save(ckpt_payload, tmp_ckpt)
+        os.replace(tmp_ckpt, ckpt_path)
+
+    # How often (in micro-batch steps, the same counter the progress print
+    # uses) to checkpoint within an epoch. 500 out of ~1500 steps/epoch means
+    # roughly 3 saves per epoch, bounding the worst-case lost work from an
+    # interrupted epoch to a third of it (~30 min) instead of the whole
+    # ~90-100 minute epoch.
+    MID_EPOCH_CKPT_EVERY = 500
+
     for si, stage in enumerate(cfg.train.stages):
         if stop:
             break
@@ -872,6 +914,17 @@ def main() -> None:
                           f"xai {agg['xai']/n_seen:.3f}@{w_xai:.3f}{aux_str}) "
                           f"{n_seen/max(el,1e-6):.2f} img/s", flush=True)
 
+                if (step + 1) % MID_EPOCH_CKPT_EVERY == 0:
+                    # epoch `ep` itself isn't done yet - resume must restart
+                    # it from its own beginning, so this reports ep-1 (the
+                    # last FULLY completed epoch) as still the resume point,
+                    # while the weights/optimizer/scheduler state captured
+                    # here are already partway through epoch ep.
+                    write_checkpoint(ep - 1)
+                    print(f"           [checkpoint] stage {si+1} epoch {ep+1} "
+                          f"step {step+1}/{len(train_ld)} saved (mid-epoch) "
+                          f"-> {ckpt_path}", flush=True)
+
             # ---- hard-example mining -------------------------------------
             update_hardness(hard, np.concatenate(ep_idx), np.concatenate(ep_loss),
                             np.concatenate(ep_pred), np.concatenate(ep_true),
@@ -966,27 +1019,10 @@ def main() -> None:
             # same command picks up right after this point instead of
             # restarting stage 1. Written to a temp file + atomic rename so a
             # shutdown mid-write can't corrupt the one checkpoint a resume
-            # depends on.
-            ckpt_payload = {
-                "stage_idx": si, "epoch_in_stage": ep, "epoch_global": epoch_global,
-                "model": model.state_dict(), "optimizer": opt.state_dict(),
-                "scheduler": sched.state_dict(),
-                "ema_shadow": ([s.detach().cpu() for s in ema.shadow]
-                              if ema is not None else None),
-                "gla_lora_ranks": info["ranks"], "gla_lora_info": info,
-                "hard": {"hardness": hard.hardness, "seen": hard.seen,
-                         "boundary": hard.boundary, "lowconf": hard.lowconf},
-                "history": history, "best": best, "best_epoch": best_epoch,
-                "stale": stale,
-                "torch_rng_state": torch.get_rng_state(),
-                "cuda_rng_state_all": (torch.cuda.get_rng_state_all()
-                                       if torch.cuda.is_available() else None),
-                "numpy_rng_state": np.random.get_state(),
-                "args": vars(args),
-            }
-            tmp_ckpt = out_dir / "checkpoint.pt.tmp"
-            torch.save(ckpt_payload, tmp_ckpt)
-            os.replace(tmp_ckpt, ckpt_path)
+            # depends on. (The mid-epoch call above uses the same helper with
+            # ep-1 while this one - now that history/best/stale above already
+            # reflect epoch `ep` itself - correctly passes ep.)
+            write_checkpoint(ep)
             print(f"           [checkpoint] stage {si+1} epoch {ep+1} saved "
                   f"-> {ckpt_path}")
 
