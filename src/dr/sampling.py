@@ -116,11 +116,18 @@ def sampling_weights(labels: np.ndarray, meta_idx: np.ndarray,
 
 def make_sampler(labels: np.ndarray, meta_idx: np.ndarray,
                  state: HardExampleState | None, cfg: SamplingCfg,
-                 num_samples: int | None = None) -> WeightedRandomSampler:
+                 num_samples: int | None = None,
+                 seed: int | None = None) -> WeightedRandomSampler:
     w = sampling_weights(labels, meta_idx, state, cfg)
+    # An explicit per-epoch generator (rather than the implicit global RNG)
+    # makes the realised draw order reproducible from `seed` alone, regardless
+    # of any other randomness consumed elsewhere in the process. This is what
+    # lets a mid-epoch resume rebuild the *exact same* sample sequence and
+    # skip past only the steps already trained, instead of redoing the epoch.
+    gen = torch.Generator().manual_seed(seed) if seed is not None else None
     return WeightedRandomSampler(torch.as_tensor(w, dtype=torch.double),
                                  num_samples=num_samples or len(labels),
-                                 replacement=True)
+                                 replacement=True, generator=gen)
 
 
 def class_loss_weights(counts: np.ndarray, power: float,

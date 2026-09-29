@@ -1,7 +1,7 @@
 Diabetic Retinopathy Pipeline
 Implementation & Session Documentation
 
-Generated: 2026-09-29 13:42:45
+Generated: 2026-09-29 17:56:22
 Machine: DESKTOP-39I5E6Q (Windows 11)
 Project root: C:\Users\HP\Downloads\dr-project-python-fixed\dr-project-python-master
 This document records the work done to take the rebuilt dr/data/ package from an untested checkout to a
@@ -196,11 +196,11 @@ Last log lines:
 COMPLETE - 8 epochs run, best validation Dice 0.1401. Checkpoint: outputs/lesion_pretrain/lesion_encoder.pt
 
 -- 6.3  Staged Training
-IN PROGRESS / RESUMABLE - 14 epoch(s) checkpointed so far.
-Last completed epoch: 14  stage=s2_lora  QWK=0.4735  score=0.4302
+IN PROGRESS / RESUMABLE - 16 epoch(s) checkpointed so far.
+Last completed epoch: 16  stage=s2_lora  QWK=0.5103  score=0.4593
 
 -- 6.4  Disk / Environment
-Free disk space: 669.4 GB
+Free disk space: 670.1 GB
 GPU: NVIDIA GeForce RTX 5060 (8.5 GB VRAM)
 
 ==============================================================================
@@ -536,7 +536,7 @@ reported elsewhere in this document - none of it is aspirational or unverified d
 ==============================================================================
 Appendix: Experiment Values Registry
 ==============================================================================
-Source: data\experiment_values.json, generated 2026-09-29T13:42:41. Every value below is read from a real
+Source: data\experiment_values.json, generated 2026-09-29T17:56:19. Every value below is read from a real
 config/log/output file at generation time; anything not yet computable is marked PENDING, and anything this
 codebase does not implement is marked NOT APPLICABLE, rather than estimated or invented.
 
@@ -921,6 +921,8 @@ epochs completed this run:
  s2_lora | 7 | 6.9499 | 0.4023 | 0.3437 | 0.474 | 0.3991 | 0.4793 | 0.836
  s2_lora | 8 | 6.6168 | 0.5088 | 0.3797 | 0.3847 | 0.4453 | 0.6113 | 0.8389
  s2_lora | 9 | 6.3674 | 0.4735 | 0.366 | 0.418 | 0.4302 | 0.578 | 0.848
+ s2_lora | 10 | 6.2041 | 0.4817 | 0.3804 | 0.4378 | 0.4425 | 0.5873 | 0.8393
+ s2_lora | 11 | 6.0838 | 0.5103 | 0.391 | 0.4345 | 0.4593 | 0.6153 | 0.8394
 checkpoints saved this run:
  stage | epoch
  1 | 1
@@ -937,14 +939,16 @@ checkpoints saved this run:
  2 | 7
  2 | 8
  2 | 9
+ 2 | 10
+ 2 | 11
 last live step:
  stage: 2
- epoch in stage: 10
- step: 425
+ epoch in stage: 12
+ step: 400
  total steps: 1500
- train loss: 6.1980
- throughput img s: 1.67
-monitoring time series file: data/training_monitor.csv (281 rows so far)
+ train loss: 6.1972
+ throughput img s: 1.11
+monitoring time series file: data/training_monitor.csv (332 rows so far)
 learning rate per step: NOT APPLICABLE - not implemented in this codebase (not logged per-step; per-stage
 LRs are in section 6 config)
 14 final dr grading metrics: PENDING - computed after training/evaluation completes (test-set
@@ -998,6 +1002,6 @@ timm version: 1.0.29
 opencv version: 5.0.0
 python version: 3.14.7
 os: Windows-11-10.0.26200-SP0
-git commit: 4bad9f8b11d1da28bfde5c2fa4694a1c06dc2e89
-git commit short: 4bad9f8
+git commit: 34f34a2e0c16ff77e672265d900c360f76a45591
+git commit short: 34f34a2
 power plan: High performance (switched from Balanced this session)

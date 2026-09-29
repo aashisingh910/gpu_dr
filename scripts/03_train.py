@@ -532,9 +532,9 @@ def main() -> None:
     # `_hardness` buffer is already sized this way for the same reason.
     hard = HardExampleState.empty(len(train_ds.meta_full))
 
-    def build_train_loader():
+    def build_train_loader(seed: int | None = None):
         sampler = make_sampler(labels, meta_idx, hard, cfg.sampling,
-                               args.samples_per_epoch)
+                               args.samples_per_epoch, seed=seed)
         return DataLoader(train_ds, batch_size=cfg.train.batch_size,
                           sampler=sampler, num_workers=cfg.train.num_workers,
                           drop_last=True, pin_memory=(device.type == "cuda"),
@@ -691,6 +691,16 @@ def main() -> None:
             torch.cuda.set_rng_state_all(resume["cuda_rng_state_all"])
         np.random.set_state(resume["numpy_rng_state"])
         resume_stage, resume_epoch_in_stage = resume["stage_idx"], resume["epoch_in_stage"]
+        # Present only on a mid-epoch checkpoint (see MID_EPOCH_CKPT_EVERY
+        # below): the exact micro-batch step to resume at, plus the partial
+        # epoch's running accumulators, so that epoch can pick up from where
+        # it left off instead of being retrained from its own start.
+        resume_mid_step = resume.get("resume_step")
+        resume_mid_state = resume.get("mid_epoch_state")
+        if resume_mid_step is not None:
+            print(f"[resume] mid-epoch checkpoint found: will resume stage "
+                  f"{resume_stage+1} epoch {resume_epoch_in_stage+2} at step "
+                  f"{resume_mid_step} instead of retraining it from step 0")
         print(f"[resume] continuing after stage {resume_stage+1} epoch "
               f"{resume_epoch_in_stage+1} (global epoch {epoch_global}, "
               f"best score {best:.4f} at epoch {best_epoch})")
@@ -699,7 +709,9 @@ def main() -> None:
         stale = 0
         epoch_global = 0
         resume_stage, resume_epoch_in_stage = -1, -1
+        resume_mid_step, resume_mid_state = None, None
     resume_state_applied = resume is None
+    resume_mid_applied = resume_mid_step is None
     t_start = time.time()
     stop = False
 
@@ -715,7 +727,8 @@ def main() -> None:
     # `hard` are only mutated after the full epoch's step loop finishes (see
     # below), so reading them here mid-epoch correctly captures the PREVIOUS
     # epoch's values, not a half-finished one.
-    def write_checkpoint(epoch_in_stage_value: int) -> None:
+    def write_checkpoint(epoch_in_stage_value: int,
+                        resume_step: int | None = None) -> None:
         ckpt_payload = {
             "stage_idx": si, "epoch_in_stage": epoch_in_stage_value,
             "epoch_global": epoch_global,
@@ -733,7 +746,22 @@ def main() -> None:
                                    if torch.cuda.is_available() else None),
             "numpy_rng_state": np.random.get_state(),
             "args": vars(args),
+            "resume_step": resume_step,
         }
+        if resume_step is not None:
+            # The in-progress epoch's running totals, so resuming can pick up
+            # the accumulation instead of starting `agg`/`n_seen`/the mining
+            # arrays over from zero - concatenated to one array per field
+            # (np.concatenate on a single-element list restoring it is a
+            # no-op, so the epoch-end mining call needs no special-casing).
+            ckpt_payload["mid_epoch_state"] = {
+                "agg": dict(agg), "n_seen": n_seen,
+                "ep_idx": np.concatenate(ep_idx) if ep_idx else np.empty(0, np.int64),
+                "ep_loss": np.concatenate(ep_loss) if ep_loss else np.empty(0, np.float32),
+                "ep_pred": np.concatenate(ep_pred) if ep_pred else np.empty(0, np.int64),
+                "ep_true": np.concatenate(ep_true) if ep_true else np.empty(0, np.int64),
+                "ep_margin": np.concatenate(ep_margin) if ep_margin else np.empty(0, np.float32),
+            }
         tmp_ckpt = out_dir / "checkpoint.pt.tmp"
         torch.save(ckpt_payload, tmp_ckpt)
         os.replace(tmp_ckpt, ckpt_path)
@@ -770,7 +798,10 @@ def main() -> None:
             print("  nothing trainable in this stage, skipping")
             continue
         opt = torch.optim.AdamW(groups)
-        train_ld = build_train_loader()
+        # Seeded by the global epoch count (unique per real epoch across the
+        # whole run) so this epoch's realised sample order is reproducible
+        # from that seed alone on resume - see build_train_loader/make_sampler.
+        train_ld = build_train_loader(seed=cfg.train.seed + epoch_global)
         steps = max(1, len(train_ld) * stage.epochs // max(cfg.train.grad_accum, 1))
         warm = max(1, int(steps * cfg.train.warmup_frac))
         sched = torch.optim.lr_scheduler.LambdaLR(
@@ -795,14 +826,50 @@ def main() -> None:
             progress = (ep + 1) / max(stage.epochs, 1)
             w_xai = xai_weight_for_stage(cfg.xai, si, progress)
             model.train()
-            agg = {k: 0.0 for k in ("total", "ord", "hier", "bnd", "con",
-                                    "les", "pa", "cbf", "xai", "aux_les", "aux_xai")}
-            n_seen = 0
-            ep_idx, ep_loss, ep_pred, ep_true, ep_margin = [], [], [], [], []
+            skip_to_step = 0
+            if (ep == start_epoch and resume_mid_step is not None
+                    and not resume_mid_applied):
+                # This exact epoch was interrupted partway through and
+                # checkpointed mid-epoch (see MID_EPOCH_CKPT_EVERY) - restore
+                # its running totals instead of starting them at zero, and
+                # fast-forward the step loop below to where it left off.
+                # train_ld was rebuilt just above with the SAME seed used the
+                # first time this epoch ran, so the realised sample order -
+                # and therefore which step index means what - is identical.
+                ms = resume_mid_state
+                agg = dict(ms["agg"])
+                n_seen = ms["n_seen"]
+                ep_idx = [ms["ep_idx"]]
+                ep_loss = [ms["ep_loss"]]
+                ep_pred = [ms["ep_pred"]]
+                ep_true = [ms["ep_true"]]
+                ep_margin = [ms["ep_margin"]]
+                skip_to_step = resume_mid_step
+                resume_mid_applied = True
+                print(f"[resume] re-entering stage {si+1} epoch {ep+1} at "
+                      f"step {skip_to_step}/{len(train_ld)} ({n_seen} images "
+                      f"already accounted for this epoch)")
+            else:
+                agg = {k: 0.0 for k in ("total", "ord", "hier", "bnd", "con",
+                                        "les", "pa", "cbf", "xai", "aux_les", "aux_xai")}
+                n_seen = 0
+                ep_idx, ep_loss, ep_pred, ep_true, ep_margin = [], [], [], [], []
             t0 = time.time()
             opt.zero_grad(set_to_none=True)
 
             for step, batch in enumerate(train_ld):
+                if step < skip_to_step:
+                    # Already trained in a previous run of this exact epoch -
+                    # its contribution to agg/mining/n_seen was restored
+                    # above, so only the (comparatively cheap) data loading
+                    # for this index needs to happen here, not the forward/
+                    # backward pass, to keep the realised sample sequence
+                    # aligned with the original pass through this epoch.
+                    if (step + 1) % 250 == 0:
+                        print(f"  s{si+1}e{ep+1} fast-forwarding, skipped "
+                              f"{step+1}/{skip_to_step} already-trained steps",
+                              flush=True)
+                    continue
                 b = to_device(batch, device)
                 with torch.autocast(device_type=device.type, dtype=amp_dtype,
                                     enabled=amp_enabled):
@@ -915,22 +982,24 @@ def main() -> None:
                           f"{n_seen/max(el,1e-6):.2f} img/s", flush=True)
 
                 if (step + 1) % MID_EPOCH_CKPT_EVERY == 0:
-                    # epoch `ep` itself isn't done yet - resume must restart
-                    # it from its own beginning, so this reports ep-1 (the
-                    # last FULLY completed epoch) as still the resume point,
-                    # while the weights/optimizer/scheduler state captured
-                    # here are already partway through epoch ep.
-                    write_checkpoint(ep - 1)
+                    # epoch `ep` itself isn't done yet - resume must re-enter
+                    # it rather than start the next one, so this reports ep-1
+                    # (the last FULLY completed epoch) as still the resume
+                    # point, while the weights/optimizer/scheduler state and
+                    # resume_step captured here let it pick back up at step+1
+                    # instead of redoing the epoch from its own start.
+                    write_checkpoint(ep - 1, resume_step=step + 1)
                     print(f"           [checkpoint] stage {si+1} epoch {ep+1} "
-                          f"step {step+1}/{len(train_ld)} saved (mid-epoch) "
-                          f"-> {ckpt_path}", flush=True)
+                          f"step {step+1}/{len(train_ld)} saved (mid-epoch, "
+                          f"resumable at this exact step) -> {ckpt_path}",
+                          flush=True)
 
             # ---- hard-example mining -------------------------------------
             update_hardness(hard, np.concatenate(ep_idx), np.concatenate(ep_loss),
                             np.concatenate(ep_pred), np.concatenate(ep_true),
                             np.concatenate(ep_margin), cfg.sampling)
             mr = mining_report(hard, labels, meta_idx)
-            train_ld = build_train_loader()
+            train_ld = build_train_loader(seed=cfg.train.seed + epoch_global)
 
             vm, vprob, vyy, _ = evaluate_split(model, val_ld, device,
                                                cfg.head.n_grades, args.decode)
