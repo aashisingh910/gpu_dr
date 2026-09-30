@@ -211,7 +211,7 @@ def main() -> None:
     ds = CachedEyePACS(args.cache, args.split, augment=False, cfg=cfg)
     ld = DataLoader(ds, batch_size=24, shuffle=False, num_workers=0)
     print(f"[data] {args.split} split: {len(ds)} images, "
-          f"{ds.meta.loc[ds.idx,'patient_id'].nunique()} patients")
+          f"{ds.meta['patient_id'].nunique()} patients")
 
     t0 = time.time()
     if args.tta:

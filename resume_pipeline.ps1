@@ -75,7 +75,8 @@ Step "Lesion-expert pretraining (real IDRiD/DDR masks)" @(
 # --grad-accum to 16 and rerun (safe - nothing checkpointed yet).
 Step "Staged training (full 5/12/14/14 schedule)" @(
     "-u", "scripts/03_train.py",
-    "--stage-epochs", "5,12,14,14", "--samples-per-epoch", "6000", "--max-val", "1500",
+    "--stage-epochs", "5,12,14,14", "--patience", "45",
+    "--samples-per-epoch", "6000", "--max-val", "1500",
     "--batch-size", "4", "--grad-accum", "8", "--grad-checkpoint",
     "--global-size", "448", "--crop-input", "224", "--n-crops", "6",
     # cfg.train.num_workers defaults to 0 (single-threaded, in-process data

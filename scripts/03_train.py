@@ -342,6 +342,8 @@ def main() -> None:
                     help="checkpoint from scripts/10_lesion_pretrain.py")
     ap.add_argument("--stage-epochs", type=str, default=None,
                     help="comma-separated override, e.g. 2,3,3,3")
+    ap.add_argument("--patience", type=int, default=None,
+                    help="epochs without selection-score gain before early stopping")
     ap.add_argument("--global-size", type=int, default=None)
     ap.add_argument("--crop-input", type=int, default=None)
     ap.add_argument("--n-crops", type=int, default=None)
@@ -470,6 +472,10 @@ def main() -> None:
             StageCfg(s.name, e, s.train_backbone, s.train_lora, s.unfreeze_frac,
                      s.head_lr, s.lora_lr, s.backbone_lr, s.train_alpp)
             for s, e in zip(cfg.train.stages, eps))
+    if args.patience is not None:
+        if args.patience < 1:
+            ap.error("--patience must be at least 1")
+        cfg.train.patience = args.patience
     if args.select: cfg.train.select_objective = args.select
     if args.no_init_ladder_from_prior: cfg.train.init_ladder_from_prior = False
     if args.no_learned_loss_weights: cfg.loss.learned_weights = False
@@ -767,11 +773,13 @@ def main() -> None:
         os.replace(tmp_ckpt, ckpt_path)
 
     # How often (in micro-batch steps, the same counter the progress print
-    # uses) to checkpoint within an epoch. 500 out of ~1500 steps/epoch means
-    # roughly 3 saves per epoch, bounding the worst-case lost work from an
-    # interrupted epoch to a third of it (~30 min) instead of the whole
-    # ~90-100 minute epoch.
-    MID_EPOCH_CKPT_EVERY = 500
+    # uses) to checkpoint within an epoch. 100 out of ~1500 steps/epoch means
+    # roughly 15 saves per epoch, bounding the worst-case lost work from an
+    # interrupted epoch to about a fifteenth of it (~6 min) instead of the
+    # whole ~90-100 minute epoch. Each save costs well under a second on this
+    # disk for a ~1.4GB checkpoint (measured), so the extra I/O is negligible
+    # against a ~2.7s/step training pace.
+    MID_EPOCH_CKPT_EVERY = 100
 
     for si, stage in enumerate(cfg.train.stages):
         if stop:
@@ -821,6 +829,27 @@ def main() -> None:
             resume_state_applied = True
             print(f"[resume] optimizer/scheduler/EMA state restored for stage "
                   f"{si+1}; continuing at epoch {start_epoch+1}/{stage.epochs}")
+
+        if start_epoch == 0:
+            # Patience is a per-stage budget, not a whole-run one. `best`/
+            # `best_epoch` stay global on purpose (best.pt must always be the
+            # single best checkpoint across the entire run), but `stale` was
+            # ALSO carrying over uninterrupted across stage boundaries - so a
+            # new stage that just unfroze more backbone (the whole point of
+            # which is to try to beat a plateau the previous stage got stuck
+            # at) inherited however little patience-budget the previous stage
+            # had left, sometimes as little as one epoch. That's exactly what
+            # killed this run: stage 2 plateaued for its last 7 epochs, so
+            # stage 3 opened with only 1 epoch of slack before the global
+            # patience(8) ran out - triggering "early stop" one epoch into a
+            # 14-epoch stage that never got a real chance. Resetting here
+            # gives every stage its own full `patience`-epoch window to
+            # either beat the global best or be judged to have plateaued.
+            if stale:
+                print(f"[stage {si+1}] resetting patience counter (was {stale} "
+                      f"epochs stale from the previous stage) - this stage "
+                      f"gets its own {cfg.train.patience}-epoch budget")
+            stale = 0
 
         for ep in range(start_epoch, stage.epochs):
             progress = (ep + 1) / max(stage.epochs, 1)

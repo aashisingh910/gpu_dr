@@ -540,19 +540,21 @@ def build(pdf: PdfPages):
 
     # ------------------------------------------------------------------
     D.h1("7. Next Steps")
-    D.bullet("Let preprocessing finish (full 35,126-image, 1024px cache).")
-    D.bullet("Start scripts/03_train.py with --lesion-encoder pointed at "
-            "the completed lesion_encoder.pt (already wired into "
-            "resume_pipeline.ps1), starting at --batch-size 4 --grad-"
-            "accum 8 --grad-checkpoint for the 8GB card.")
-    D.bullet("If training OOMs before its first checkpoint, lower "
-            "--batch-size further and raise --grad-accum to compensate - "
-            "safe to do at that point since nothing has been "
-            "checkpointed yet.")
-    D.bullet("Once training completes all four stages, run the full "
-            "evaluation/reporting sequence (already chained in "
-            "resume_pipeline.ps1) and read outputs/objectives_"
-            "consolidated.json / .csv first.")
+    D.bullet("Decision bar for stage 3: epoch 1 regressed on every metric vs. stage 2's last "
+            "epoch (QWK 0.493->0.448, score 0.450->0.418) - expected post-unfreeze "
+            "destabilization, same as the stage 1->2 transition. If score hasn't recovered to "
+            "the run's best (0.471, epoch 10) by stage 3 epoch 5-6, stop stage 3/4 entirely and "
+            "ship stage 2's best.pt rather than spend ~3.5h/epoch chasing a plateau likely set "
+            "by data scarcity (grade 3: 707 images, grade 4: 560, out of 28,102 train).")
+    D.bullet("Apply the Task Scheduler boot-trigger fix in an elevated PowerShell window (both "
+            "DR_Training_AutoResume and DR_Training_Monitor currently only fire on interactive "
+            "logon, not on an unattended reboot) - commands are in this session's chat history.")
+    D.bullet("scripts/04_evaluate.py's patient-count line had a real indexing bug (cache_row "
+            "used as a positional label into the split-local dataframe) - fixed; will run "
+            "cleanly next time the pipeline reaches an evaluation step.")
+    D.bullet("Once training stops (by the bar above or by completing all four stages), run the "
+            "full evaluation/reporting sequence (already chained in resume_pipeline.ps1) and "
+            "read outputs/objectives_consolidated.json / .csv first.")
     D.bullet("Re-run this script (generate_session_report.py) at any "
             "point to refresh this document with current progress.")
 

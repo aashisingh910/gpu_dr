@@ -1,7 +1,7 @@
 Diabetic Retinopathy Pipeline
 Implementation & Session Documentation
 
-Generated: 2026-09-29 17:56:22
+Generated: 2026-09-30 17:53:40
 Machine: DESKTOP-39I5E6Q (Windows 11)
 Project root: C:\Users\HP\Downloads\dr-project-python-fixed\dr-project-python-master
 This document records the work done to take the rebuilt dr/data/ package from an untested checkout to a
@@ -196,24 +196,30 @@ Last log lines:
 COMPLETE - 8 epochs run, best validation Dice 0.1401. Checkpoint: outputs/lesion_pretrain/lesion_encoder.pt
 
 -- 6.3  Staged Training
-IN PROGRESS / RESUMABLE - 16 epoch(s) checkpointed so far.
-Last completed epoch: 16  stage=s2_lora  QWK=0.5103  score=0.4593
+IN PROGRESS / RESUMABLE - 18 epoch(s) checkpointed so far.
+Last completed epoch: 18  stage=s3_unfreeze  QWK=0.4476  score=0.4178
 
 -- 6.4  Disk / Environment
-Free disk space: 670.1 GB
+Free disk space: 667.2 GB
 GPU: NVIDIA GeForce RTX 5060 (8.5 GB VRAM)
 
 ==============================================================================
 7. Next Steps
 ==============================================================================
--  Let preprocessing finish (full 35,126-image, 1024px cache).
--  Start scripts/03_train.py with --lesion-encoder pointed at the completed lesion_encoder.pt (already
-wired into resume_pipeline.ps1), starting at --batch-size 4 --grad-accum 8 --grad-checkpoint for the 8GB
-card.
--  If training OOMs before its first checkpoint, lower --batch-size further and raise --grad-accum to
-compensate - safe to do at that point since nothing has been checkpointed yet.
--  Once training completes all four stages, run the full evaluation/reporting sequence (already chained
-in resume_pipeline.ps1) and read outputs/objectives_consolidated.json / .csv first.
+-  Decision bar for stage 3: epoch 1 regressed on every metric vs. stage 2's last epoch (QWK
+0.493->0.448, score 0.450->0.418) - expected post-unfreeze destabilization, same as the stage 1->2
+transition. If score hasn't recovered to the run's best (0.471, epoch 10) by stage 3 epoch 5-6, stop
+stage 3/4 entirely and ship stage 2's best.pt rather than spend ~3.5h/epoch chasing a plateau likely set
+by data scarcity (grade 3: 707 images, grade 4: 560, out of 28,102 train).
+-  Apply the Task Scheduler boot-trigger fix in an elevated PowerShell window (both
+DR_Training_AutoResume and DR_Training_Monitor currently only fire on interactive logon, not on an
+unattended reboot) - commands are in this session's chat history.
+-  scripts/04_evaluate.py's patient-count line had a real indexing bug (cache_row used as a positional
+label into the split-local dataframe) - fixed; will run cleanly next time the pipeline reaches an
+evaluation step.
+-  Once training stops (by the bar above or by completing all four stages), run the full
+evaluation/reporting sequence (already chained in resume_pipeline.ps1) and read
+outputs/objectives_consolidated.json / .csv first.
 -  Re-run this script (generate_session_report.py) at any point to refresh this document with current
 progress.
 
@@ -536,7 +542,7 @@ reported elsewhere in this document - none of it is aspirational or unverified d
 ==============================================================================
 Appendix: Experiment Values Registry
 ==============================================================================
-Source: data\experiment_values.json, generated 2026-09-29T17:56:19. Every value below is read from a real
+Source: data\experiment_values.json, generated 2026-09-30T17:52:27. Every value below is read from a real
 config/log/output file at generation time; anything not yet computable is marked PENDING, and anything this
 codebase does not implement is marked NOT APPLICABLE, rather than estimated or invented.
 
@@ -751,7 +757,7 @@ num seeds: 1
 ladder lr mult: 10.0
 init ladder from prior: True
 num workers: 16
-patience epochs: 8
+patience epochs: 45
 select objective: ordinal
 select weights:
  qwk: 0.5
@@ -923,6 +929,8 @@ epochs completed this run:
  s2_lora | 9 | 6.3674 | 0.4735 | 0.366 | 0.418 | 0.4302 | 0.578 | 0.848
  s2_lora | 10 | 6.2041 | 0.4817 | 0.3804 | 0.4378 | 0.4425 | 0.5873 | 0.8393
  s2_lora | 11 | 6.0838 | 0.5103 | 0.391 | 0.4345 | 0.4593 | 0.6153 | 0.8394
+ s2_lora | 12 | 6.1054 | 0.4927 | 0.3869 | 0.4393 | 0.4503 | 0.6027 | 0.8395
+ s3_unfreeze | 1 | 6.0046 | 0.4476 | 0.3513 | 0.4431 | 0.4178 | 0.544 | 0.8389
 checkpoints saved this run:
  stage | epoch
  1 | 1
@@ -941,14 +949,16 @@ checkpoints saved this run:
  2 | 9
  2 | 10
  2 | 11
+ 2 | 12
+ 3 | 1
 last live step:
- stage: 2
- epoch in stage: 12
- step: 400
+ stage: 3
+ epoch in stage: 2
+ step: 300
  total steps: 1500
- train loss: 6.1972
- throughput img s: 1.11
-monitoring time series file: data/training_monitor.csv (332 rows so far)
+ train loss: 5.9884
+ throughput img s: 0.59
+monitoring time series file: data/training_monitor.csv (434 rows so far)
 learning rate per step: NOT APPLICABLE - not implemented in this codebase (not logged per-step; per-stage
 LRs are in section 6 config)
 14 final dr grading metrics: PENDING - computed after training/evaluation completes (test-set
@@ -1002,6 +1012,6 @@ timm version: 1.0.29
 opencv version: 5.0.0
 python version: 3.14.7
 os: Windows-11-10.0.26200-SP0
-git commit: 34f34a2e0c16ff77e672265d900c360f76a45591
-git commit short: 34f34a2
+git commit: cf0e1bba1b69f657f0049065880615bfde49c307
+git commit short: cf0e1bb
 power plan: High performance (switched from Balanced this session)

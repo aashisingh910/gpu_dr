@@ -273,6 +273,23 @@ def _parse_step_series(text: str, tag: str = "s1e1") -> list[dict]:
     return rows
 
 
+def _parse_last_live_step(text: str) -> dict | None:
+    """Most recent step-log line for ANY stage/epoch (unlike
+    _parse_step_series, which is deliberately pinned to one fixed tag as an
+    early-training case study) - this is what "current position" should
+    actually read from, so it doesn't freeze at whatever stage/epoch the
+    case study happens to document."""
+    pattern = re.compile(
+        r"^  s(\d)e(\d+) step (\d+)/(\d+) loss=([\d.]+).*?([\d.]+) img/s", re.M)
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return None
+    m = matches[-1]
+    return {"stage": int(m.group(1)), "epoch_in_stage": int(m.group(2)),
+            "step": int(m.group(3)), "total_steps": int(m.group(4)),
+            "loss": float(m.group(5)), "img_s": float(m.group(6))}
+
+
 def _parse_self_test(text: str) -> tuple[list[str], str]:
     idx = text.rfind("SELF-TEST:")
     if idx == -1:
@@ -293,6 +310,7 @@ def gather_evidence() -> dict:
     ev["train_split_counts"] = _parse_train_split_counts(text)
     ev["gate"] = _parse_gate_stats(text)
     ev["step_series"] = _parse_step_series(text, "s1e1")
+    ev["last_live_step"] = _parse_last_live_step(text)
     ev["self_test_passes"], ev["self_test_summary"] = _parse_self_test(text)
 
     for key, marker in [("retfound_load", "RETFound weights loaded"),
@@ -370,7 +388,7 @@ def build(pdf: PdfPages, ev: dict):
         D.para("Training has completed all 45 scheduled epochs. Final "
               "evidence-pack numbers should be read from the freshly "
               "generated objective1-4 evidence files.", size=10.5, bold=True,
-              color="#0b6b2d")
+              color="#0b6b2d", width=90)
     else:
         D.para(f"Training is IN PROGRESS: {ev['train_epochs_completed']}/"
               f"{TOTAL_SCHEDULED_EPOCHS} epochs completed and checkpointed. "
@@ -379,12 +397,13 @@ def build(pdf: PdfPages, ev: dict):
               "schedule finishes. What follows documents, in detail, the "
               "methodology behind each objective and everything already "
               "measurable about it on real data.", size=10, bold=True,
-              color="#a33c00")
-        if ev["step_series"]:
-            last = ev["step_series"][-1]
-            D.para(f"Current position: stage 1 epoch 1, step {last['step']}/1500, "
-                  f"training loss {last['loss']:.2f} (falling from 113.28 at "
-                  f"step 0), throughput {last['img_s']:.2f} samples/sec.",
+              color="#a33c00", width=92)
+        if ev["last_live_step"]:
+            last = ev["last_live_step"]
+            D.para(f"Current position: stage {last['stage']} epoch "
+                  f"{last['epoch_in_stage']}, step {last['step']}/{last['total_steps']}, "
+                  f"training loss {last['loss']:.2f}, throughput "
+                  f"{last['img_s']:.2f} samples/sec.",
                   size=9, indent=0.01)
 
     # ---- system architecture overview -----------------------------------

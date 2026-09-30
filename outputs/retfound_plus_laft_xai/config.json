@@ -256,7 +256,7 @@
       2,
       3
     ],
-    "patience": 8,
+    "patience": 45,
     "lesion_pretrain_epochs": 8,
     "lesion_pretrain_lr": 0.0003,
     "init_ladder_from_prior": true,

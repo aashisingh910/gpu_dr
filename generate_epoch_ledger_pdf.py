@@ -6,7 +6,7 @@ setup/architecture reference values. Mirrors the HTML artifact's content in
 a form that can be archived, printed, or shared without needing the live
 claude.ai link.
 
-Data below is the same 16-epoch dataset shown in the artifact - re-run this
+Data below is the same 18-epoch dataset shown in the artifact - re-run this
 script any time to bring it up to date as more epochs complete.
 
 Output: outputs/epoch_ledger.pdf
@@ -34,6 +34,8 @@ GRADE_COLORS = ["#1f9d5c", "#93b52a", "#e0ab1e", "#e07a26", "#d13a2e"]
 INK = "#16232c"
 INK_DIM = "#5c6b74"
 ACCENT = "#0e7c86"
+STAGE_BG = {1: "#f7f9fa", 2: "#eaf6f6", 3: "#fdf1e6", 4: "#f3ecf9"}
+STAGE_PT = {1: "#8a94a6", 2: ACCENT, 3: "#c4750f", 4: "#7a4fa3"}
 
 
 def tint(t: float) -> tuple:
@@ -45,7 +47,7 @@ def tint(t: float) -> tuple:
     return tuple(a[i] + (b[i] - a[i]) * t2 for i in range(3))
 
 
-# ---- data (S1 e1-5, S2 e1-12 as of 29 Sep 2026) ----------------------------
+# ---- data (S1 e1-5, S2 e1-12, S3 e1 as of 30 Sep 2026) ---------------------
 ROWS = [
     dict(ep="S1 e1", stage=1, time=75.7, loss=83.90, qwk=0.351, f1=0.292, minrec=0.187, score=0.300, acc=0.666, refauc=0.726, cleared=91.1, npv=0.9854, thr=0.237, stdr=0.8877, mh=1.00, mb=0.03, recall=[0.829, 0.059, 0.224, 0.278, 0.000]),
     dict(ep="S1 e2", stage=1, time=68.8, loss=48.43, qwk=0.421, f1=0.287, minrec=0.198, score=0.336, acc=0.607, refauc=0.778, cleared=94.1, npv=0.9851, thr=0.599, stdr=0.9162, mh=1.00, mb=0.05, recall=[0.726, 0.059, 0.341, 0.194, 0.286]),
@@ -63,6 +65,8 @@ ROWS = [
     dict(ep="S2 e9", stage=2, time=96.6, loss=6.37, qwk=0.474, f1=0.366, minrec=0.418, score=0.430, acc=0.578, refauc=0.848, cleared=95.0, npv=0.9853, thr=0.693, stdr=0.9426, mh=1.60, mb=0.09, recall=[0.639, 0.139, 0.477, 0.639, 0.333]),
     dict(ep="S2 e10", stage=2, time=83.5, loss=6.20, qwk=0.482, f1=0.380, minrec=0.438, score=0.443, acc=0.587, refauc=0.839, cleared=94.9, npv=0.9852, thr=0.691, stdr=0.9410, mh=1.60, mb=0.09, recall=[0.656, 0.129, 0.435, 0.750, 0.381]),
     dict(ep="S2 e11", stage=2, time=92.2, loss=6.08, qwk=0.510, f1=0.391, minrec=0.435, score=0.459, acc=0.615, refauc=0.839, cleared=94.7, npv=0.9852, thr=0.665, stdr=0.9499, mh=1.61, mb=0.09, recall=[0.695, 0.119, 0.435, 0.750, 0.333]),
+    dict(ep="S2 e12", stage=2, time=101.9, loss=6.11, qwk=0.493, f1=0.387, minrec=0.439, score=0.450, acc=0.603, refauc=0.840, cleared=94.9, npv=0.9852, thr=0.667, stdr=0.9461, mh=1.61, mb=0.09, recall=[0.676, 0.129, 0.439, 0.750, 0.333]),
+    dict(ep="S3 e1", stage=3, time=212.7, loss=6.00, qwk=0.448, f1=0.351, minrec=0.443, score=0.418, acc=0.544, refauc=0.839, cleared=94.9, npv=0.9853, thr=0.687, stdr=0.9549, mh=1.61, mb=0.09, recall=[0.602, 0.089, 0.435, 0.806, 0.286]),
 ]
 
 METRIC_COLS = [
@@ -104,7 +108,8 @@ def title_block(ax, kicker, title, dek, y=0.97):
             transform=ax.transAxes, family="serif")
     if dek:
         ax.text(0.03, y - 0.12, dek, fontsize=9, color=INK_DIM,
-                transform=ax.transAxes, family="sans-serif", wrap=True)
+                transform=ax.transAxes, family="sans-serif", wrap=True,
+                verticalalignment="top", linespacing=1.5)
 
 
 def main():
@@ -116,16 +121,16 @@ def main():
         ax = fig.add_axes((0, 0, 1, 1)); ax.axis("off")
         title_block(ax, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
                     "Epoch Ledger",
-                    "Every completed epoch so far, stage 1 through stage 2 (in progress) - loss, ordinal\n"
+                    "Every completed epoch so far, stage 1 through stage 3 epoch 1 - loss, ordinal\n"
                     "agreement, minority-class recall, screening/STDR discrimination, hard-example-mining\n"
                     "state, and the full per-grade recall spread, read directly from the training log.")
 
         stats = [
-            ("Epochs complete", "16 / 45", "Stage 2, epoch 12 of 12 in progress"),
+            ("Epochs complete", "18 / 45", "Stage 3 epoch 2 running now"),
             ("Best QWK", "0.554", "Stage 2, epochs 5 & 6"),
             ("Best score", "0.471", "Stage 2, epoch 5"),
             ("Best min-class recall", "0.474", "Stage 2, epoch 7"),
-            ("Best refAUC", "0.848", "Stage 2, epoch 9 - climbing steadily"),
+            ("Best refAUC", "0.848", "Stage 2, epoch 9 - since plateaued ~0.84"),
         ]
         x0 = 0.03
         w = 0.185
@@ -173,18 +178,20 @@ def main():
             ax.text(x + col_w - 0.01, y, direction, fontsize=6.5, color=dircolor,
                     transform=ax.transAxes, ha="right", fontweight="bold")
             ax.text(x, y - 0.028, "\n".join(textwrap.wrap(defn, 62)), fontsize=6.8,
-                    color=INK_DIM, transform=ax.transAxes, linespacing=1.4)
-        footer(fig, "Generated from data/_resume_pipeline_full.log and outputs/retfound_plus_laft_xai/history.json - page 1/5")
+                    color=INK_DIM, transform=ax.transAxes, linespacing=1.4,
+                    verticalalignment="top")
+        footer(fig, "Generated from data/_resume_pipeline_full.log and outputs/retfound_plus_laft_xai/history.json - page 1/6")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 2: main comparative table =================
         fig = new_page()
         ax = fig.add_axes((0.02, 0.06, 0.96, 0.88)); ax.axis("off")
-        ax.text(0.0, 1.0, "Full comparison, all 16 epochs", fontsize=16, fontweight="bold",
+        ax.text(0.0, 1.0, "Full comparison, all 18 epochs", fontsize=16, fontweight="bold",
                 color=INK, family="serif", transform=ax.transAxes)
         ax.text(0.0, 0.965, "Stage 1: head only, backbone frozen. Stage 2: GLA-LoRA + ALPP trainable, backbone still frozen. "
+                            "Stage 3: 8/24 backbone blocks unfrozen too.\n"
                             "Shading: worst (red) to best (green) per column; loss inverted (lower is greener).",
-                fontsize=8, color=INK_DIM, transform=ax.transAxes)
+                fontsize=8, color=INK_DIM, transform=ax.transAxes, verticalalignment="top", linespacing=1.5)
 
         headers = ["Epoch", "Time"] + [c[1] for c in METRIC_COLS]
         cell_text = []
@@ -192,7 +199,7 @@ def main():
         ranges = {c[0]: ranges_for(c[0]) for c in METRIC_COLS}
         for r in ROWS:
             row_txt = [r["ep"], f"{r['time']:.1f}m"]
-            row_col = ["#f7f9fa" if r["stage"] == 1 else "#eaf6f6"] * 2
+            row_col = [STAGE_BG[r["stage"]]] * 2
             for key, _, direction, fmt in METRIC_COLS:
                 row_txt.append(fmt.format(r[key]))
                 lo, hi = ranges[key]
@@ -200,7 +207,7 @@ def main():
                 if direction == -1:
                     t = 1 - t
                 if direction == 0:
-                    row_col.append("#f7f9fa" if r["stage"] == 1 else "#eaf6f6")
+                    row_col.append(STAGE_BG[r["stage"]])
                 else:
                     row_col.append(tint(t))
             cell_text.append(row_txt)
@@ -221,7 +228,7 @@ def main():
                 key, _, direction, _ = METRIC_COLS[col - 2]
                 if direction != 0:
                     cell.set_text_props(color="white", fontweight="bold")
-        footer(fig, "Best value per column is the most-saturated green cell - page 2/5")
+        footer(fig, "Best value per column is the most-saturated green cell - page 2/6")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 3: per-grade recall heatmap =================
@@ -230,7 +237,7 @@ def main():
         ax.text(0.0, 1.0, "Per-grade recall, every epoch", fontsize=16, fontweight="bold",
                 color=INK, family="serif", transform=ax.transAxes)
         ax.text(0.0, 0.955, "Shaded per grade (each column against its own best/worst across all\n"
-                            "16 epochs) so a hard grade like Mild still shows its own real progress.",
+                            "18 epochs) so a hard grade like Mild still shows its own real progress.",
                 fontsize=8, color=INK_DIM, transform=ax.transAxes)
 
         g_ranges = [
@@ -240,7 +247,7 @@ def main():
         text2, colors2 = [], []
         for r in ROWS:
             row_txt = [r["ep"]]
-            row_col = ["#f7f9fa" if r["stage"] == 1 else "#eaf6f6"]
+            row_col = [STAGE_BG[r["stage"]]]
             for g in range(5):
                 v = r["recall"][g]
                 lo, hi = g_ranges[g]
@@ -262,7 +269,7 @@ def main():
                 cell.set_text_props(color="white", fontweight="bold")
 
         # grade distribution bar, right half of page
-        ax2 = fig.add_axes((0.63, 0.55, 0.33, 0.35))
+        ax2 = fig.add_axes((0.67, 0.55, 0.29, 0.35))
         counts = [20641, 1944, 4250, 707, 560]
         total = sum(counts)
         ax2.barh(range(5), counts, color=GRADE_COLORS)
@@ -277,7 +284,7 @@ def main():
         ax2.set_xlim(0, max(counts) * 1.35)
 
         # GLA-LoRA rank chart
-        ax3 = fig.add_axes((0.63, 0.08, 0.33, 0.35))
+        ax3 = fig.add_axes((0.67, 0.08, 0.29, 0.35))
         ranks = [13, 8, 8, 10, 11, 11, 11, 11, 10, 10, 11, 10, 10, 10, 9, 9, 11, 10, 9, 9, 10, 10, 9, 3]
         bar_colors = [ACCENT if (i == 0 or rk >= 13) else ("#bf3a2e" if rk <= 4 else "#9aa5ab")
                      for i, rk in enumerate(ranks)]
@@ -288,45 +295,54 @@ def main():
         ax3.tick_params(labelsize=6.5)
         for spine in ("top", "right"):
             ax3.spines[spine].set_visible(False)
-        footer(fig, "Grade colors use the clinical 0-4 DR severity scale - page 3/5")
+        footer(fig, "Grade colors use the clinical 0-4 DR severity scale - page 3/6")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 4: trend charts =================
         fig = new_page()
-        eps = [r["ep"].replace("S1 e", "1.").replace("S2 e", "2.") for r in ROWS]
+        eps = [r["ep"].replace("S1 e", "1.").replace("S2 e", "2.").replace("S3 e", "3.")
+              for r in ROWS]
         x = list(range(len(ROWS)))
+        # stage boundaries: S1|S2 falls between rows 4/5 (0-indexed), S2|S3
+        # between rows 16/17 - only draw a boundary that's actually inside
+        # the data so far.
+        boundaries = [b for b in (4.5, 16.5) if b < len(ROWS) - 0.5]
+
+        def _bounds(ax):
+            for b in boundaries:
+                ax.axvline(b, color=INK_DIM, linestyle="--", linewidth=0.8)
 
         ax1 = fig.add_axes((0.06, 0.56, 0.42, 0.36))
         ax1.plot(x, [r["qwk"] for r in ROWS], "-o", color=ACCENT, label="QWK", markersize=3)
         ax1.plot(x, [r["score"] for r in ROWS], "-o", color="#c48a11", label="Score", markersize=3)
-        ax1.axvline(4.5, color=INK_DIM, linestyle="--", linewidth=0.8)
-        ax1.set_title("QWK & Score, all 16 epochs", fontsize=9, fontweight="bold")
+        _bounds(ax1)
+        ax1.set_title("QWK & Score, all 18 epochs", fontsize=9, fontweight="bold")
         ax1.legend(fontsize=7, frameon=False)
         _style(ax1, x, eps)
 
         ax2 = fig.add_axes((0.55, 0.56, 0.42, 0.36))
         ax2.plot(x, [r["loss"] for r in ROWS], "-o", color=ACCENT, markersize=3)
-        ax2.axvline(4.5, color=INK_DIM, linestyle="--", linewidth=0.8)
-        ax2.set_title("Loss, all 16 epochs", fontsize=9, fontweight="bold")
+        _bounds(ax2)
+        ax2.set_title("Loss, all 18 epochs", fontsize=9, fontweight="bold")
         _style(ax2, x, eps)
 
         ax3 = fig.add_axes((0.06, 0.08, 0.42, 0.36))
         ax3.plot(x, [r["stdr"] for r in ROWS], "-o", color=GOOD, markersize=3)
-        ax3.axvline(4.5, color=INK_DIM, linestyle="--", linewidth=0.8)
-        ax3.set_title("STDR AUC (sight-threatening DR), all 16 epochs", fontsize=9, fontweight="bold")
+        _bounds(ax3)
+        ax3.set_title("STDR AUC (sight-threatening DR), all 18 epochs", fontsize=9, fontweight="bold")
         _style(ax3, x, eps)
 
         ax4 = fig.add_axes((0.55, 0.08, 0.42, 0.36))
         for g in range(5):
             ax4.plot(x, [r["recall"][g] for r in ROWS], "-o", color=GRADE_COLORS[g],
                     markersize=3, linewidth=1.3, label=f"G{g}")
-        ax4.axvline(4.5, color=INK_DIM, linestyle="--", linewidth=0.8)
-        ax4.set_title("Per-grade recall trend, all 16 epochs", fontsize=9, fontweight="bold")
+        _bounds(ax4)
+        ax4.set_title("Per-grade recall trend, all 18 epochs", fontsize=9, fontweight="bold")
         ax4.legend(fontsize=6.5, frameon=False, ncol=5, loc="upper left")
         _style(ax4, x, eps)
 
         fig.text(0.5, 0.965, "Trends", fontsize=16, fontweight="bold", ha="center", family="serif")
-        footer(fig, "Dashed line marks the stage 1 -> stage 2 boundary - page 4/5")
+        footer(fig, "Dashed lines mark stage boundaries (1|2 and 2|3) - page 4/6")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 5: notable events + setup reference =================
@@ -337,15 +353,15 @@ def main():
         events = [
             ("Grade 1 (Mild) breaking its floor",
              "Stuck at 5-11% recall for 12 straight epochs, Mild reached 21.8% (e7), 13.9% (e9), 12.9% (e10),\n"
-             "and 11.9% (e11) - four of the last five epochs above the old ceiling. Too early to call it settled,\n"
-             "but the first sign this isn't just noise."),
-            ("Epoch 10's five failed attempts",
-             "Restarts kept landing before the ~90-100 minute epoch could finish and checkpoint, wiping it\n"
-             "out each time across 4 days. Fixed by adding a checkpoint every 500 steps mid-epoch, plus\n"
-             "(later) exact-step resume via a seeded sampler, instead of redoing the whole epoch."),
+             "11.9% (e11), and 12.9% (e12) - five of the last six epochs above the old ceiling. Too early to\n"
+             "call it settled, but the first sign this isn't just noise."),
+            ("Two resume bugs found this week - both now fixed and confirmed",
+             "Mid-epoch resume (added Sep 29) missed its own first test (stale in-memory code); a Sep 30\n"
+             "retry confirmed it working. Separately, ONE patience counter spanned every stage, so stage 2's\n"
+             "plateau silently killed stage 3 after 1 epoch - fixed to reset per stage; resumed into epoch 2."),
             ("Stage 1 -> Stage 2 lift",
-             "Turning on GLA-LoRA and ALPP training lifted every average metric: QWK 0.415->0.483,\n"
-             "score 0.338->0.412, min-recall 0.211->0.331 - at the cost of ~27% longer epochs."),
+             "Turning on GLA-LoRA and ALPP training lifted every average metric: QWK 0.415->0.486,\n"
+             "score 0.338->0.423, min-recall 0.211->0.361 - at the cost of ~27% longer epochs."),
         ]
         y = 0.86
         for title, body in events:
@@ -354,7 +370,7 @@ def main():
             ax.text(0.045, y - 0.02, title, fontsize=10.5, fontweight="bold", color=INK,
                     transform=ax.transAxes)
             ax.text(0.045, y - 0.055, body, fontsize=8.3, color=INK_DIM,
-                    transform=ax.transAxes, linespacing=1.6)
+                    transform=ax.transAxes, linespacing=1.6, verticalalignment="top")
             y -= 0.175
 
         ax.text(0.03, 0.27, "Setup & architecture reference", fontsize=14, fontweight="bold",
@@ -371,7 +387,86 @@ def main():
             ax.text(0.03, yy, k, fontsize=8.5, fontweight="bold", color=INK, transform=ax.transAxes,
                     family="monospace")
             ax.text(0.28, yy, v, fontsize=8.5, color=INK_DIM, transform=ax.transAxes)
-        footer(fig, "Generated 29 Sep 2026 from data/_resume_pipeline_full.log, history.json and gla_lora.json - page 5/5")
+        footer(fig, "Generated 30 Sep 2026 from data/_resume_pipeline_full.log, history.json and gla_lora.json - page 5/6")
+        pdf.savefig(fig); plt.close(fig)
+
+        # ================= PAGE 6: efficiency, spread + conclusion =========
+        fig = new_page()
+        ax0 = fig.add_axes((0, 0, 1, 1)); ax0.axis("off")
+        title_block(ax0, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
+                    "Efficiency, Spread & Conclusion",
+                    "Two more views of the same 18 epochs, plus a plain read on where the run stands.")
+
+        # ---- scatter: score vs wall-clock time, coloured by stage ---------
+        axs = fig.add_axes((0.07, 0.50, 0.40, 0.28))
+        for stage_no, color, label in ((1, STAGE_PT[1], "Stage 1"), (2, STAGE_PT[2], "Stage 2"),
+                                       (3, STAGE_PT[3], "Stage 3")):
+            pts = [r for r in ROWS if r["stage"] == stage_no]
+            axs.scatter([r["time"] for r in pts], [r["score"] for r in pts],
+                       s=30, color=color, label=label, zorder=3, edgecolor="white", linewidth=0.5)
+        best = max(ROWS, key=lambda r: r["score"])
+        axs.annotate(f"best: {best['ep']}", (best["time"], best["score"]),
+                    textcoords="offset points", xytext=(6, 5), fontsize=6.5, color=INK,
+                    fontweight="bold")
+        axs.set_xlabel("Epoch wall-clock time (min)", fontsize=7.5)
+        axs.set_ylabel("Selection score", fontsize=7.5)
+        axs.set_title("Score vs. training time - is the extra time paying off?",
+                     fontsize=8.5, fontweight="bold")
+        axs.legend(fontsize=6.5, frameon=False, loc="lower right")
+        axs.tick_params(labelsize=6.5)
+        axs.grid(alpha=0.25, linewidth=0.5)
+        for spine in ("top", "right"):
+            axs.spines[spine].set_visible(False)
+
+        # ---- box plot: per-grade recall spread across all epochs ----------
+        axb = fig.add_axes((0.56, 0.50, 0.39, 0.28))
+        data = [[r["recall"][g] for r in ROWS] for g in range(5)]
+        bp = axb.boxplot(data, patch_artist=True, widths=0.55,
+                        medianprops=dict(color="white", linewidth=1.5),
+                        flierprops=dict(marker="o", markersize=3, markerfacecolor=INK_DIM,
+                                        markeredgecolor="none"))
+        for patch, color in zip(bp["boxes"], GRADE_COLORS):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.85)
+        axb.set_xticklabels(["G0", "G1", "G2", "G3", "G4"], fontsize=7.5)
+        axb.set_ylabel("Recall", fontsize=7.5)
+        axb.set_title("Per-grade recall spread, all 18 epochs",
+                     fontsize=8.5, fontweight="bold")
+        axb.tick_params(labelsize=6.5)
+        axb.grid(axis="y", alpha=0.25, linewidth=0.5)
+        for spine in ("top", "right"):
+            axb.spines[spine].set_visible(False)
+
+        # ---- conclusion -----------------------------------------------------
+        ax0.text(0.03, 0.44, "Conclusion", fontsize=14, fontweight="bold",
+                color=INK, family="serif", transform=ax0.transAxes)
+        conclusion = [
+            ("Status", GOOD,
+             "18/45 epochs done - stage 1 (frozen) and stage 2 (GLA-LoRA+ALPP) complete; stage 3 (33%\n"
+             "of the backbone unfrozen) is on epoch 2, running now. Both resume bugs found this week are\n"
+             "fixed and confirmed: stage 3 epoch 2 resumed cleanly with no redone work and no early stop."),
+            ("Working", GOOD,
+             "Screening NPV >= 0.985 met in all 18 epochs, no exceptions. Grade 1 (Mild) recall, long the\n"
+             "weakest metric, broke above its old 5-11% floor in the last 6 stage-2 epochs."),
+            ("Not working yet", BAD,
+             "Stage 3 epoch 1 regressed on every metric vs. stage 2's last epoch (QWK 0.493->0.448, score\n"
+             "0.450->0.418) - expected post-unfreeze destabilization (same happened at stage 1->2), but not\n"
+             "yet proof it recovers. refAUC has been flat ~0.84 since epoch 9."),
+            ("Next", ACCENT,
+             "Decision bar: if stage 3 hasn't matched score 0.471 (epoch 10, still the run's best) by epoch\n"
+             "5-6, stop and ship stage 2's best.pt rather than burn more compute chasing it."),
+        ]
+        yy = 0.395
+        for label, color, text in conclusion:
+            n_lines = text.count("\n") + 1
+            ax0.add_patch(plt.Rectangle((0.03, yy - 0.008), 0.012, 0.018, transform=ax0.transAxes,
+                                        facecolor=color, edgecolor="none"))
+            ax0.text(0.05, yy, label, fontsize=9.5, fontweight="bold", color=INK,
+                    transform=ax0.transAxes, verticalalignment="top")
+            ax0.text(0.19, yy, text, fontsize=8.3, color=INK_DIM, transform=ax0.transAxes,
+                    linespacing=1.5, verticalalignment="top")
+            yy -= n_lines * 0.028 + 0.028
+        footer(fig, "Selection score = 0.5*QWK + 0.3*MacroF1 + 0.2*minority-recall (grades 1-3) - page 6/6")
         pdf.savefig(fig); plt.close(fig)
 
     print(f"[saved] {OUT_PDF}")
