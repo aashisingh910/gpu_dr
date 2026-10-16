@@ -904,14 +904,21 @@ def build(pdf: PdfPages, ev: dict):
     # =====================================================================
     D.h1("6. Consolidated Summary")
     rows = [
-        ("Objective 1 - Class imbalance", "Implemented + self-test-verified + training live on real imbalanced data",
-         "Held-out per-grade recall (scripts 04, 15)"),
+        ("Objective 1 - Class imbalance", "Loss re-weighting (sampling, hard-mining, CB-focal, CORAL-prior "
+         "re-init) implemented + self-test-verified + training live on real imbalanced data",
+         "Held-out per-grade recall (scripts 04, 15) - auto-resolves. Data AUGMENTATION side of this "
+         "objective (MixUp/CutMix/RandAugment/etc.) is NOT implemented anywhere in this codebase - only "
+         "crop jitter + h-flip exist - will NOT resolve by waiting; needs new code."),
         ("Objective 2 - Preprocessing/visibility", "Implemented + run end-to-end on all 35,126 real images",
-         "Lesion-visibility CNR vs real masks (script 12)"),
+         "Lesion-visibility CNR vs real masks (script 12) - auto-resolves"),
         ("Objective 3 - Hybrid FE / efficient FT", "Real RETFound (100% coverage) + GLA-LoRA live, real per-block allocation",
-         "Efficiency comparison across arms (scripts 13, 18-20)"),
+         "Linear probe (script 13) and its reports (18) auto-resolve. The adaptation-arm comparison "
+         "(RETFound-init vs ImageNet-init GLA-LoRA, scripts 19-20) depends on run_objective3.sh, which "
+         "has NEVER been executed on this machine and will NOT run via resume_pipeline.ps1 - it is a "
+         "separate bash script hardcoded to a Linux venv path (.venv/bin/python vs this machine's "
+         ".venv/Scripts/python.exe). Will NOT resolve by waiting; needs manual action."),
         ("Objective 4 - XAI / trust / deployment", "Real-mask co-training live, uncertainty/decision-gate self-test-verified",
-         "Final XAI + deployment benchmarks (scripts 21, 06)"),
+         "Final XAI + deployment benchmarks (scripts 21, 06) - auto-resolve"),
     ]
     for obj, done, pending in rows:
         D.h2(obj)
@@ -919,13 +926,17 @@ def build(pdf: PdfPages, ev: dict):
         D.label_value("  Pending", pending, color="#a33c00")
 
     D.h1("7. Timeline to Full Evidence")
-    D.bullet("Training (5+12+14+14 = 45 epochs, staged): currently in stage "
-            "1 of 4; roughly 2 to 2.5 days remaining at the current, "
-            "independently-verified throughput of ~2.0-2.1 samples/sec on "
-            "this 8GB GPU.")
-    D.bullet("Full evaluation + all four objective reports + model "
-            "comparison + deployment optimisation: a few hours, automatic, "
-            "immediately after training completes.")
+    _completed = ev["train_epochs_completed"]
+    _remaining = TOTAL_SCHEDULED_EPOCHS - _completed
+    D.bullet(f"Training (5+12+14+14 = 45 epochs, staged): {_completed}/{TOTAL_SCHEDULED_EPOCHS} "
+            f"epochs done, {_remaining} remaining. A reliable ETA is not available from a single "
+            "live-throughput sample; later stages have different training rates.")
+    D.bullet("Full evaluation + objective 1/2/4 reports + model comparison + deployment "
+            "optimisation: a few hours, automatic, immediately after training completes - these are "
+            "all already chained in resume_pipeline.ps1.")
+    D.bullet("Objective 3's adaptation-arm comparison and the augmentation half of Objective 1 are "
+            "NOT part of that automatic chain (see section 6 above) - both need action independent "
+            "of training finishing.")
     D.bullet("This report regenerates from live data on every run - re-run "
             "it at that point to replace every \"pending\" line above with "
             "the actual measured result.")
