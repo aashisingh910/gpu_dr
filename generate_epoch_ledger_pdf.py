@@ -6,14 +6,17 @@ setup/architecture reference values. Mirrors the HTML artifact's content in
 a form that can be archived, printed, or shared without needing the live
 claude.ai link.
 
-Data below is the same 28-epoch dataset shown in the artifact - re-run this
-script any time to bring it up to date as more epochs complete.
+Epoch metrics are loaded from outputs/retfound_plus_laft_xai/history.csv and
+the current progress snapshot from data/training_monitor.csv. Re-run this
+script any time to refresh the ledger.
 
 Output: outputs/epoch_ledger.pdf
 """
 from __future__ import annotations
 
+import csv
 import textwrap
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib
@@ -48,7 +51,7 @@ def tint(t: float) -> tuple:
     return tuple(a[i] + (b[i] - a[i]) * t2 for i in range(3))
 
 
-# ---- data (S1 e1-5, S2 e1-12, S3 e1-11 as of 16 Oct 2026) ------------------
+# ---- reference snapshot (replaced by the saved run history below) ----------
 ROWS = [
     dict(ep="S1 e1", stage=1, time=75.7, loss=83.90, qwk=0.351, f1=0.292, minrec=0.187, score=0.300, acc=0.666, refauc=0.726, cleared=91.1, npv=0.9854, thr=0.237, stdr=0.8877, mh=1.00, mb=0.03, recall=[0.829, 0.059, 0.224, 0.278, 0.000]),
     dict(ep="S1 e2", stage=1, time=68.8, loss=48.43, qwk=0.421, f1=0.287, minrec=0.198, score=0.336, acc=0.607, refauc=0.778, cleared=94.1, npv=0.9851, thr=0.599, stdr=0.9162, mh=1.00, mb=0.05, recall=[0.726, 0.059, 0.341, 0.194, 0.286]),
@@ -91,6 +94,65 @@ STAGE_INFO = [
     ("S3 unfreeze", 14, 116_478_843, 36.444, "5.0e-5", "5.0e-4", "5.0e-5", "5.0e-6", True),
     ("S4 full",     14, 319_612_795, 100.0,  "2.0e-5", "2.0e-4", "2.0e-5", "5.0e-6", False),
 ]
+
+
+def load_history_rows():
+    history_path = ROOT / "outputs" / "retfound_plus_laft_xai" / "history.csv"
+    stage_numbers = {"s1_frozen": 1, "s2_lora": 2, "s3_unfreeze": 3, "s4_full": 4}
+    rows = []
+    with history_path.open(newline="", encoding="utf-8-sig") as f:
+        for item in csv.DictReader(f):
+            stage = stage_numbers[item["stage"]]
+            recalls = [float(item[f"val_recall_grade_{g}"]) for g in range(5)]
+            rows.append({
+                "ep": f"S{stage} e{int(item['stage_epoch'])}",
+                "stage": stage,
+                "time": float(item["epoch_sec"]) / 60,
+                "loss": float(item["train_loss"]),
+                "qwk": float(item["val_quadratic_weighted_kappa"]),
+                "f1": float(item["val_f1_macro"]),
+                "minrec": float(np.mean(recalls[1:4])),
+                "score": float(item["selection_score"]),
+                "acc": float(item["val_accuracy"]),
+                "refauc": float(item["val_auc_referable_dr"]),
+                "cleared": float(item["val_screen_cleared"]) * 100,
+                "npv": float(item["val_screen_npv"]),
+                "thr": float(item["val_screen_threshold"]),
+                "stdr": float(item["val_auc_sight_threatening"]),
+                "mh": float(item["mine_p90_hardness"]),
+                "mb": float(item["mine_boundary_rate"]),
+                "recall": recalls,
+            })
+    if not rows:
+        raise ValueError(f"No completed epochs found in {history_path}")
+    return rows
+
+
+ROWS = load_history_rows()
+TOTAL_PLANNED = sum(stage[1] for stage in STAGE_INFO)
+
+
+def latest_monitor_status():
+    monitor_path = ROOT / "data" / "training_monitor.csv"
+    if not monitor_path.exists():
+        return "Live training status unavailable (no monitor CSV)."
+    with monitor_path.open(newline="", encoding="utf-8-sig") as f:
+        records = list(csv.DictReader(f))
+    if not records:
+        return "Live training status unavailable (monitor CSV is empty)."
+    latest = records[-1]
+    timestamp = latest["timestamp"].replace("T", " ")
+    if not latest["stage"] or not latest["epoch_in_stage"]:
+        return f"Latest monitor snapshot: {timestamp}; stage/epoch unavailable."
+    step = latest["step"] or "?"
+    total = latest["total_steps"] or "?"
+    return (f"S{latest['stage']}E{latest['epoch_in_stage']} {step}/{total} "
+            f"@{timestamp[-5:]}")
+
+
+def epoch_label(row):
+    return f"stage {row['stage']}, epoch {row['ep'].split(' e')[1]}"
+
 
 METRIC_COLS = [
     ("loss", "Loss", -1, "{:.2f}"),
@@ -137,6 +199,12 @@ def title_block(ax, kicker, title, dek, y=0.97):
 
 def main():
     OUT_PDF.parent.mkdir(exist_ok=True)
+    best_qwk = max(ROWS, key=lambda r: r["qwk"])
+    best_score = max(ROWS, key=lambda r: r["score"])
+    best_minrec = max(ROWS, key=lambda r: r["minrec"])
+    best_refauc = max(ROWS, key=lambda r: r["refauc"])
+    n_epochs = len(ROWS)
+    live_status = latest_monitor_status()
     with PdfPages(OUT_PDF) as pdf:
 
         # ================= PAGE 1: title + stats + glossary =================
@@ -144,16 +212,16 @@ def main():
         ax = fig.add_axes((0, 0, 1, 1)); ax.axis("off")
         title_block(ax, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
                     "Epoch Ledger",
-                    "Every completed epoch so far, stage 1 through stage 3 epoch 10 - loss, ordinal\n"
-                    "agreement, minority-class recall, screening/STDR discrimination, hard-example-mining\n"
-                    "state, and the full per-grade recall spread, read directly from the training log.")
+                    f"Completed epochs through {ROWS[-1]['ep']}: loss, ordinal agreement, minority-class\n"
+                    "recall, screening/STDR discrimination, hard-example-mining state, and per-grade\n"
+                    "recall, loaded from the saved training history.")
 
         stats = [
-            ("Epochs complete", "28 / 45", "Stage 3 epoch 12 in progress"),
-            ("Best QWK", "0.607", "Stage 3, epoch 6 (was 0.554)"),
-            ("Best score", "0.505", "Stage 3, epoch 6 (was 0.471)"),
-            ("Best min-class recall", "0.474", "Stage 2, epoch 7"),
-            ("Best refAUC", "0.873", "Stage 3, epoch 6 (was 0.848)"),
+            ("Epochs complete", f"{n_epochs} / {TOTAL_PLANNED}", live_status),
+            ("Best QWK", f"{best_qwk['qwk']:.3f}", epoch_label(best_qwk)),
+            ("Best score", f"{best_score['score']:.3f}", epoch_label(best_score)),
+            ("Best min-class recall", f"{best_minrec['minrec']:.3f}", epoch_label(best_minrec)),
+            ("Best refAUC", f"{best_refauc['refauc']:.3f}", epoch_label(best_refauc)),
         ]
         x0 = 0.03
         w = 0.185
@@ -203,13 +271,13 @@ def main():
             ax.text(x, y - 0.028, "\n".join(textwrap.wrap(defn, 62)), fontsize=6.8,
                     color=INK_DIM, transform=ax.transAxes, linespacing=1.4,
                     verticalalignment="top")
-        footer(fig, "Generated from data/_resume_pipeline_full.log and outputs/retfound_plus_laft_xai/history.json - page 1/9")
+        footer(fig, f"Generated from outputs/retfound_plus_laft_xai/history.csv and data/training_monitor.csv - page 1/9")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 2: main comparative table =================
         fig = new_page()
         ax = fig.add_axes((0.02, 0.06, 0.96, 0.88)); ax.axis("off")
-        ax.text(0.0, 1.0, "Full comparison, all 28 epochs", fontsize=16, fontweight="bold",
+        ax.text(0.0, 1.0, f"Full comparison, all {n_epochs} completed epochs", fontsize=16, fontweight="bold",
                 color=INK, family="serif", transform=ax.transAxes)
         ax.text(0.0, 0.965, "Stage 1: head only, backbone frozen. Stage 2: GLA-LoRA + ALPP trainable, backbone still frozen. "
                             "Stage 3: 8/24 backbone blocks unfrozen too.\n"
@@ -251,7 +319,7 @@ def main():
                 key, _, direction, _ = METRIC_COLS[col - 2]
                 if direction != 0:
                     cell.set_text_props(color="white", fontweight="bold")
-        footer(fig, "Best value per column is the most-saturated green cell - page 2/9")
+        footer(fig, f"Best value per column is the most-saturated green cell - {n_epochs} completed epochs - page 2/9")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 3: per-grade recall heatmap =================
@@ -260,7 +328,7 @@ def main():
         ax.text(0.0, 1.0, "Per-grade recall, every epoch", fontsize=16, fontweight="bold",
                 color=INK, family="serif", transform=ax.transAxes)
         ax.text(0.0, 0.955, "Shaded per grade (each column against its own best/worst across all\n"
-                            "28 epochs) so a hard grade like Mild still shows its own real progress.",
+                            f"{n_epochs} completed epochs) so each grade shows its own progress.",
                 fontsize=8, color=INK_DIM, transform=ax.transAxes)
 
         g_ranges = [
@@ -339,20 +407,20 @@ def main():
         ax1.plot(x, [r["qwk"] for r in ROWS], "-o", color=ACCENT, label="QWK", markersize=3)
         ax1.plot(x, [r["score"] for r in ROWS], "-o", color="#c48a11", label="Score", markersize=3)
         _bounds(ax1)
-        ax1.set_title("QWK & Score, all 28 epochs", fontsize=9, fontweight="bold")
+        ax1.set_title(f"QWK & Score, all {n_epochs} completed epochs", fontsize=9, fontweight="bold")
         ax1.legend(fontsize=7, frameon=False)
         _style(ax1, x, eps)
 
         ax2 = fig.add_axes((0.55, 0.56, 0.42, 0.36))
         ax2.plot(x, [r["loss"] for r in ROWS], "-o", color=ACCENT, markersize=3)
         _bounds(ax2)
-        ax2.set_title("Loss, all 28 epochs", fontsize=9, fontweight="bold")
+        ax2.set_title(f"Loss, all {n_epochs} completed epochs", fontsize=9, fontweight="bold")
         _style(ax2, x, eps)
 
         ax3 = fig.add_axes((0.06, 0.08, 0.42, 0.36))
         ax3.plot(x, [r["stdr"] for r in ROWS], "-o", color=GOOD, markersize=3)
         _bounds(ax3)
-        ax3.set_title("STDR AUC (sight-threatening DR), all 28 epochs", fontsize=9, fontweight="bold")
+        ax3.set_title(f"STDR AUC (sight-threatening DR), all {n_epochs} completed epochs", fontsize=9, fontweight="bold")
         _style(ax3, x, eps)
 
         ax4 = fig.add_axes((0.55, 0.08, 0.42, 0.36))
@@ -360,7 +428,7 @@ def main():
             ax4.plot(x, [r["recall"][g] for r in ROWS], "-o", color=GRADE_COLORS[g],
                     markersize=3, linewidth=1.3, label=f"G{g}")
         _bounds(ax4)
-        ax4.set_title("Per-grade recall trend, all 28 epochs", fontsize=9, fontweight="bold")
+        ax4.set_title(f"Per-grade recall trend, all {n_epochs} completed epochs", fontsize=9, fontweight="bold")
         ax4.legend(fontsize=6.5, frameon=False, ncol=5, loc="upper left")
         _style(ax4, x, eps)
 
@@ -461,8 +529,8 @@ def main():
             axc.spines[spine].set_visible(False)
 
         ax.text(0.02, 0.535,
-               "Each capacity jump has paid off so far (avg QWK 0.415->0.486->0.543); S3's avg epoch time is\n"
-               "skewed low by one resume-split epoch (true cost closer to 195-300 min) - see page 8.",
+               "Stage averages and per-epoch timings above are calculated from completed history rows;\n"
+               "the latest monitor snapshot is shown separately from completed-epoch results.",
                fontsize=7.6, color=INK_DIM, transform=ax.transAxes, verticalalignment="center",
                style="italic", linespacing=1.4)
         footer(fig, "S4 row is projected from config, not measured - page 5/9")
@@ -473,19 +541,20 @@ def main():
         ax = fig.add_axes((0, 0, 1, 1)); ax.axis("off")
         ax.text(0.03, 0.95, "Notable events", fontsize=16, fontweight="bold", color=INK,
                 family="serif", transform=ax.transAxes)
+        latest_epoch = ROWS[-1]
         events = [
-            ("Grade 1 (Mild) breaking its floor - then matching its ceiling",
-             "Stuck at 5-11% recall for 12 straight epochs, Mild broke through from stage 2 epoch 7 onward,\n"
-             "then tied its all-time-best 21.8% again at stage 3 epoch 10 - the first repeat of that ceiling\n"
-             "in 18 epochs, landing on the same epoch QWK/score dipped (see page 9)."),
-            ("Two resume bugs found this week - both now fixed and confirmed",
-             "Mid-epoch resume (added Sep 29) missed its own first test (stale in-memory code); a Sep 30\n"
-             "retry confirmed it working. Separately, ONE patience counter spanned every stage, so stage 2's\n"
-             "plateau silently killed stage 3 after 1 epoch - fixed to reset per stage; resumed into epoch 2."),
-            ("Stage 3 breaks the plateau the decision bar was watching for",
-             "Epoch 1 regressed (score 0.418) as expected, but by epoch 4 it had already passed the old\n"
-             "best (0.471, stage 2 epoch 5) and kept climbing - QWK 0.493->0.607, score 0.450->0.505,\n"
-             "refAUC 0.840->0.873, all new run highs at stage 3 epoch 6. Unfreezing the backbone worked."),
+            ("Most recent completed epoch",
+             f"{latest_epoch['ep']}: train loss {latest_epoch['loss']:.3f}, QWK "
+             f"{latest_epoch['qwk']:.3f}, selection score {latest_epoch['score']:.3f}, "
+             f"refAUC {latest_epoch['refauc']:.3f}. These are validation metrics from the "
+             "saved per-epoch history."),
+            ("Live training snapshot",
+             f"{live_status} The monitor records the most recent observed micro-batch step; "
+             "it may lag behind a completed epoch while validation and checkpointing run."),
+            ("Best recorded epoch so far",
+             f"Best QWK: {best_qwk['qwk']:.3f} ({best_qwk['ep']}); best selection score: "
+             f"{best_score['score']:.3f} ({best_score['ep']}); best refAUC: "
+             f"{best_refauc['refauc']:.3f} ({best_refauc['ep']})."),
         ]
         y = 0.86
         for title, body in events:
@@ -511,7 +580,7 @@ def main():
             ax.text(0.03, yy, k, fontsize=8.5, fontweight="bold", color=INK, transform=ax.transAxes,
                     family="monospace")
             ax.text(0.28, yy, v, fontsize=8.5, color=INK_DIM, transform=ax.transAxes)
-        footer(fig, "Generated 16 Oct 2026 from data/_resume_pipeline_full.log, history.json and gla_lora.json - page 6/9")
+        footer(fig, "Generated from current saved training history and monitor snapshot - page 6/9")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 7: efficiency & spread ======================
@@ -519,7 +588,7 @@ def main():
         ax0 = fig.add_axes((0, 0, 1, 1)); ax0.axis("off")
         title_block(ax0, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
                     "Efficiency & Spread",
-                    "Two more views of the same 28 epochs: is the extra training time paying off, and how\n"
+                    f"Two more views of the same {n_epochs} completed epochs: is the extra training time paying off, and how\n"
                     "much does each grade's recall vary epoch to epoch.")
 
         # ---- scatter: score vs wall-clock time, coloured by stage ---------
@@ -555,7 +624,7 @@ def main():
             patch.set_alpha(0.85)
         axb.set_xticklabels(["G0", "G1", "G2", "G3", "G4"], fontsize=7.5)
         axb.set_ylabel("Recall", fontsize=7.5)
-        axb.set_title("Per-grade recall spread, all 28 epochs",
+        axb.set_title(f"Per-grade recall spread, all {n_epochs} completed epochs",
                      fontsize=8.5, fontweight="bold")
         axb.tick_params(labelsize=6.5)
         axb.grid(axis="y", alpha=0.25, linewidth=0.5)
@@ -570,41 +639,26 @@ def main():
         ax = fig.add_axes((0, 0, 1, 1)); ax.axis("off")
         title_block(ax, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
                     "Detailed Analysis & Conclusion",
-                    "The full read on 28 epochs, written out rather than just tabulated (1 of 2).")
+                    f"The current read on {n_epochs} completed epochs, alongside live run status (1 of 2).")
 
         sections_p1 = [
-            ("1. Trajectory",
-             "Three stages, three distinct regimes, each measurably better than the last. Stage 1 (head only, "
-             "backbone frozen) established a floor: avg QWK 0.415, avg score 0.338 - the model learns the "
-             "task at all, but with almost no capacity to adapt its visual features to fundus images. Stage 2 "
-             "(GLA-LoRA adapters, still-frozen backbone) lifted every average metric (QWK to 0.486, score to "
-             "0.423) using only 1.43M extra parameters (0.45% of the backbone) and then plateaued hard for "
-             "its last 7 epochs - epochs 11-17 never beat epoch 10's score of 0.471. Stage 3 (33% of the "
-             "backbone blocks unfrozen) broke that plateau decisively: by epoch 4 it had already passed "
-             "stage 2's best, and by epoch 6 it reached QWK 0.607 and score 0.505 - the run's best result "
-             "to date, on every headline metric at once (QWK, score, refAUC, STDR AUC)."),
-            ("2. Why stage 3 worked",
-             "The stage 2 plateau was not a sign the model had learned everything it could from this data - "
-             "it was a sign that 0.45%-of-backbone adapter capacity, with the backbone itself permanently "
-             "frozen, had run out of room to represent whatever stage 1/2 hadn't already captured. Unfreezing "
-             "even a third of the backbone (36.4% of all parameters now trainable, at a deliberately low "
-             "5e-6 backbone LR to avoid catastrophic forgetting of the RETFound pretraining) gave the model "
-             "new degrees of freedom specifically in the deeper visual representation, not just in a "
-             "lightweight adapter sitting on top of it. Epoch 1 of stage 3 regressed on every metric (score "
-             "0.450->0.418) - the same destabilization pattern seen at the stage 1->2 boundary - before "
-             "recovering and then exceeding the prior ceiling, which is the expected signature of a genuine "
-             "capacity increase rather than overfitting to validation noise."),
-            ("3. What's still weak",
-             "Grade 1 (Mild NPDR) recall remains the model's clearest weakness: it averaged 12.4% across all "
-             "10 stage-3 epochs so far, nowhere near grade 0's 60-82% or grade 3's 69-81%. This almost "
-             "certainly reflects the training split's own composition - grade 1 sits between the overwhelming "
-             "grade-0 majority and the more visually distinct grade-2/3 lesions, and is the easiest grade for "
-             "the ordinal head to blur into its neighbours. Notably, epoch 10 tied the run's all-time-best "
-             "Mild recall (21.8%, exactly matching stage 2 epoch 7) - the first time that ceiling has been "
-             "touched again in 18 epochs, and it happened on an epoch whose QWK/score both dropped, with "
-             "grade 4 recall simultaneously at its joint-best (42.9%) too. That pattern - minority-grade "
-             "recall up, headline ordinal agreement down, in the same epoch - reads as the model trading "
-             "some majority-grade precision for minority-grade sensitivity, not a random bad epoch."),
+            ("1. Training progress",
+             f"The saved history contains {n_epochs} completed epochs out of {TOTAL_PLANNED} planned. "
+             f"The latest completed result is {latest_epoch['ep']} with QWK {latest_epoch['qwk']:.3f}, "
+             f"macro F1 {latest_epoch['f1']:.3f}, selection score {latest_epoch['score']:.3f}, and "
+             f"refAUC {latest_epoch['refauc']:.3f}. The monitor's current snapshot is {live_status}. "
+             "An in-progress epoch is not counted among completed history rows."),
+            ("2. Best observed validation metrics",
+             f"The highest QWK is {best_qwk['qwk']:.3f} at {best_qwk['ep']}; highest selection score "
+             f"is {best_score['score']:.3f} at {best_score['ep']}; highest refAUC is "
+             f"{best_refauc['refauc']:.3f} at {best_refauc['ep']}. These are maxima among the "
+             "completed epochs in this history, not an independent test-set estimate."),
+            ("3. Grade-level recall",
+             "The table and heatmap show validation recall for each grade in every completed epoch. "
+             f"Most recent grade recalls (grades 0-4): "
+             f"{', '.join(f'{v:.1%}' for v in latest_epoch['recall'])}. These validation values "
+             "describe model behavior on this split; they should not be interpreted as clinical "
+             "performance or deployment evidence."),
         ]
 
         def render_sections(ax, sections, start_y=0.80):
@@ -621,7 +675,7 @@ def main():
             return yy
 
         render_sections(ax, sections_p1)
-        footer(fig, "Every figure above is read from this run's own history.json / training log - page 8/9")
+        footer(fig, "Epoch metrics are read from outputs/retfound_plus_laft_xai/history.csv - page 8/9")
         pdf.savefig(fig); plt.close(fig)
 
         # ================= PAGE 9: detailed analysis (2/2) ==================
@@ -629,41 +683,26 @@ def main():
         ax = fig.add_axes((0, 0, 1, 1)); ax.axis("off")
         title_block(ax, "RETFOUND + GLA-LoRA · DIABETIC RETINOPATHY GRADING",
                     "Detailed Analysis & Conclusion",
-                    "The full read on 28 epochs, written out rather than just tabulated (2 of 2).")
+                    "Current status and interpretation (2 of 2).")
 
         sections_p2 = [
-            ("4. Deployment-relevant safety signal",
-             "Separately from grading accuracy, the screening gate (flag for human review vs. clear "
-             "automatically, calibrated to a 0.985 negative-predictive-value target) has held in every one "
-             "of the 28 epochs with no exception, including stage 3's regressed epoch 1. This is a different "
-             "and arguably more deployment-critical claim than QWK: it says that even while the model's "
-             "grading quality was fluctuating, the triage layer sitting in front of it was not sending "
-             "disease-positive cases home undetected. That constraint being stage-transition-proof is a "
-             "meaningfully separate result from the grading-quality trajectory above."),
-            ("5. Risk & outlook",
-             "Epoch 7's dip (score 0.505->0.483) was followed by two epochs of recovery (0.499, then 0.504), "
-             "then a second and deeper dip at epoch 10 (0.478 - the lowest score anywhere in stage 3 after "
-             "epoch 1's initial regression). Two dips in ten epochs, with the best point still three epochs "
-             "back at epoch 6, is a weaker trend than one dip would have been - but epoch 10's dip came "
-             "paired with a tie for the best-ever Mild recall and joint-best PDR recall, which is a different "
-             "and more encouraging story than a plain regression. The open question for the remaining 4 "
-             "stage-3 epochs and all of stage 4 is whether QWK/score resume climbing (capacity was still the "
-             "binding constraint and epoch 10 was a minority-recall-favouring fluctuation), settle into a "
-             "noisier plateau around epoch 6-10's range, or - unchanged from the prior read - the "
-             "minority-grade ceiling is closer to data-limited than capacity-limited, in which case stage 4's "
-             "full unfreeze would mainly buy marginal gains on the majority grades."),
-            ("6. Conclusion & recommendation",
-             "The run has already answered its central open question as of the last update: unfreezing "
-             "backbone capacity was worth the ~2x epoch-time cost, decisively. best.pt still points to stage "
-             "3 epoch 6, not stage 2 epoch 10 (the old best). Recommendation: let stage 3 finish its "
-             "remaining epochs and let stage 4 begin - there is no evidence yet of a ceiling that would "
-             "justify stopping early - while watching two things specifically: whether QWK/score recover "
-             "from epoch 10's dip the way they did from epoch 7's, and whether grade 1 recall's new tie at "
-             "21.8% becomes a genuine new floor or stays a one-epoch spike - the clearest open question this "
-             "report cannot yet answer."),
+            ("4. Screening metrics are validation results",
+             f"The latest completed epoch reports screening NPV {latest_epoch['npv']:.4f}, cleared "
+             f"{latest_epoch['cleared']:.1f}% at threshold {latest_epoch['thr']:.3f}, and "
+             f"sight-threatening DR AUC {latest_epoch['stdr']:.4f}. These are validation metrics "
+             "from the training run, not held-out test results or evidence of clinical safety."),
+            ("5. Current run state",
+             f"{live_status} This monitor snapshot is a separate, timestamped observation from the "
+             f"{n_epochs} completed epoch records. The next epoch's final metrics will appear only after "
+             "training, validation, and checkpointing finish."),
+            ("6. Reading the ledger",
+             "Epoch-level plots, tables, stage comparisons, and grade-recall summaries are generated "
+             "from the saved history CSV. Fixed architecture and split details are reference information. "
+             "The ledger reports observed training-run results only; assess generalization using the "
+             "separate held-out evaluation outputs."),
         ]
         render_sections(ax, sections_p2)
-        footer(fig, "Every figure above is read from this run's own history.json / training log - page 9/9")
+        footer(fig, "Epoch metrics are read from outputs/retfound_plus_laft_xai/history.csv - page 9/9")
         pdf.savefig(fig); plt.close(fig)
 
     print(f"[saved] {OUT_PDF}")

@@ -17,7 +17,9 @@ with the same content, for a quick read without a PDF viewer).
 from __future__ import annotations
 
 import json
+import csv
 import platform
+import re
 import subprocess
 import sys
 import textwrap
@@ -226,9 +228,26 @@ def _lesion_pretrain_status() -> dict:
 def _training_status() -> dict:
     ckpt = ROOT / "outputs" / "retfound_plus_laft_xai" / "checkpoint.pt"
     hist = _read_json(ROOT / "outputs" / "retfound_plus_laft_xai" / "history.json")
+    log_path = ROOT / "data" / "_resume_pipeline_full.log"
+    log_text = log_path.read_text(errors="ignore") if log_path.exists() else ""
+    step_matches = list(re.finditer(
+        r"^  s(\d)e(\d+) step (\d+)/(\d+) loss=([\d.]+).*?([\d.]+) img/s",
+        log_text, re.M))
+    latest_step = None
+    if step_matches:
+        match = step_matches[-1]
+        latest_step = {
+            "stage": int(match.group(1)),
+            "stage_epoch": int(match.group(2)),
+            "step": int(match.group(3)),
+            "total_steps": int(match.group(4)),
+            "loss": float(match.group(5)),
+            "img_s": float(match.group(6)),
+        }
     return {"checkpoint_exists": ckpt.exists(),
            "epochs_completed": len(hist) if hist else 0,
-           "last_epoch": hist[-1] if hist else None}
+           "last_epoch": hist[-1] if hist else None,
+           "latest_step": latest_step}
 
 
 # =============================================================================
@@ -304,9 +323,9 @@ def build(pdf: PdfPages):
             "images/sec sustained on real 1024px EyePACS images.")
     D.bullet("Lesion-expert pretraining (GPU-bound, small model): ~8-9 "
             "images/sec at 448px on the real IDRiD/DDR crop cache.")
-    D.bullet("Full staged training throughput has not been measured yet - "
-            "preprocessing must finish first, since training reads from "
-            "its cache.")
+    D.bullet("Full staged training is running on the prepared cache; the "
+            "live training step and throughput are recorded in section 6 "
+            "and the experiment-values appendix.")
 
     # ------------------------------------------------------------------
     D.h1("3. Real Bugs Found and Fixed")
@@ -531,6 +550,12 @@ def build(pdf: PdfPages):
                   f"QWK={le.get('val_quadratic_weighted_kappa', float('nan')):.4f}  "
                   f"score={le.get('selection_score', float('nan')):.4f}",
                   mono=True, size=8.5, indent=0.01)
+        if tr["latest_step"]:
+            step = tr["latest_step"]
+            D.para(f"Latest logged training step: stage {step['stage']} epoch "
+                  f"{step['stage_epoch']}, step {step['step']}/{step['total_steps']}, "
+                  f"loss={step['loss']:.3f}, throughput={step['img_s']:.2f} images/sec.",
+                  mono=True, size=8.5, indent=0.01)
     else:
         D.para("Not started - waiting on preprocessing to finish.", size=9)
 
@@ -540,21 +565,28 @@ def build(pdf: PdfPages):
 
     # ------------------------------------------------------------------
     D.h1("7. Next Steps")
-    D.bullet("Decision bar for stage 3: epoch 1 regressed on every metric vs. stage 2's last "
-            "epoch (QWK 0.493->0.448, score 0.450->0.418) - expected post-unfreeze "
-            "destabilization, same as the stage 1->2 transition. If score hasn't recovered to "
-            "the run's best (0.471, epoch 10) by stage 3 epoch 5-6, stop stage 3/4 entirely and "
-            "ship stage 2's best.pt rather than spend ~3.5h/epoch chasing a plateau likely set "
-            "by data scarcity (grade 3: 707 images, grade 4: 560, out of 28,102 train).")
-    D.bullet("Apply the Task Scheduler boot-trigger fix in an elevated PowerShell window (both "
-            "DR_Training_AutoResume and DR_Training_Monitor currently only fire on interactive "
-            "logon, not on an unattended reboot) - commands are in this session's chat history.")
-    D.bullet("scripts/04_evaluate.py's patient-count line had a real indexing bug (cache_row "
-            "used as a positional label into the split-local dataframe) - fixed; will run "
-            "cleanly next time the pipeline reaches an evaluation step.")
-    D.bullet("Once training stops (by the bar above or by completing all four stages), run the "
-            "full evaluation/reporting sequence (already chained in resume_pipeline.ps1) and "
-            "read outputs/objectives_consolidated.json / .csv first.")
+    if tr["latest_step"]:
+        step = tr["latest_step"]
+        progress = (f"The latest completed epoch is {tr['last_epoch'].get('stage')} "
+                    f"epoch {tr['last_epoch'].get('stage_epoch')} (run epoch "
+                    f"{tr['last_epoch'].get('epoch')}); "
+                    if tr["last_epoch"] else "No completed epoch history is available; ")
+        D.bullet(f"Training is currently logged at stage {step['stage']} epoch "
+                f"{step['stage_epoch']}, step {step['step']}/{step['total_steps']}. "
+                f"{progress}refresh this report after the next epoch completes to "
+                "capture its validation metrics.")
+    else:
+        D.bullet(f"The latest saved training history contains {tr['epochs_completed']} "
+                "completed epochs; no current step was found in the training log.")
+    D.bullet("Task Scheduler boot-trigger fix is applied and confirmed working: the machine was "
+            "off ~2 days (Oct 12 evening - Oct 14), and auto_start_training.ps1 fired on its own "
+            "at boot with no manual intervention, resuming stage 3 epoch 8 mid-epoch at step "
+            "1300/1500 rather than redoing it.")
+    D.bullet("The full held-out evaluation and post-training evidence pack remain pending "
+            "until staged training finishes.")
+    D.bullet("Once training stops (by completing all four stages or an intentional stop), "
+            "run the full evaluation/reporting sequence (already chained in resume_pipeline.ps1) "
+            "and read outputs/objectives_consolidated.json / .csv first.")
     D.bullet("Re-run this script (generate_session_report.py) at any "
             "point to refresh this document with current progress.")
 

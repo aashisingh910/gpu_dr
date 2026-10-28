@@ -1,7 +1,7 @@
 Diabetic Retinopathy Pipeline
 Implementation & Session Documentation
 
-Generated: 2026-09-30 17:53:40
+Generated: 2026-10-27 14:52:15
 Machine: DESKTOP-39I5E6Q (Windows 11)
 Project root: C:\Users\HP\Downloads\dr-project-python-fixed\dr-project-python-master
 This document records the work done to take the rebuilt dr/data/ package from an untested checkout to a
@@ -47,8 +47,8 @@ Observed throughput on this GPU/CPU combination so far:
 images.
 -  Lesion-expert pretraining (GPU-bound, small model): ~8-9 images/sec at 448px on the real IDRiD/DDR
 crop cache.
--  Full staged training throughput has not been measured yet - preprocessing must finish first, since
-training reads from its cache.
+-  Full staged training is running on the prepared cache; the live training step and throughput are
+recorded in section 6 and the experiment-values appendix.
 
 ==============================================================================
 3. Real Bugs Found and Fixed
@@ -196,28 +196,27 @@ Last log lines:
 COMPLETE - 8 epochs run, best validation Dice 0.1401. Checkpoint: outputs/lesion_pretrain/lesion_encoder.pt
 
 -- 6.3  Staged Training
-IN PROGRESS / RESUMABLE - 18 epoch(s) checkpointed so far.
-Last completed epoch: 18  stage=s3_unfreeze  QWK=0.4476  score=0.4178
+IN PROGRESS / RESUMABLE - 29 epoch(s) checkpointed so far.
+Last completed epoch: 29  stage=s3_unfreeze  QWK=0.5990  score=0.5047
+Latest logged training step: stage 3 epoch 13, step 200/1500, loss=4.488, throughput=0.40
+images/sec.
 
 -- 6.4  Disk / Environment
-Free disk space: 667.2 GB
+Free disk space: 625.7 GB
 GPU: NVIDIA GeForce RTX 5060 (8.5 GB VRAM)
 
 ==============================================================================
 7. Next Steps
 ==============================================================================
--  Decision bar for stage 3: epoch 1 regressed on every metric vs. stage 2's last epoch (QWK
-0.493->0.448, score 0.450->0.418) - expected post-unfreeze destabilization, same as the stage 1->2
-transition. If score hasn't recovered to the run's best (0.471, epoch 10) by stage 3 epoch 5-6, stop
-stage 3/4 entirely and ship stage 2's best.pt rather than spend ~3.5h/epoch chasing a plateau likely set
-by data scarcity (grade 3: 707 images, grade 4: 560, out of 28,102 train).
--  Apply the Task Scheduler boot-trigger fix in an elevated PowerShell window (both
-DR_Training_AutoResume and DR_Training_Monitor currently only fire on interactive logon, not on an
-unattended reboot) - commands are in this session's chat history.
--  scripts/04_evaluate.py's patient-count line had a real indexing bug (cache_row used as a positional
-label into the split-local dataframe) - fixed; will run cleanly next time the pipeline reaches an
-evaluation step.
--  Once training stops (by the bar above or by completing all four stages), run the full
+-  Training is currently logged at stage 3 epoch 13, step 200/1500. The latest completed epoch is
+s3_unfreeze epoch 12 (run epoch 29); refresh this report after the next epoch completes to capture its
+validation metrics.
+-  Task Scheduler boot-trigger fix is applied and confirmed working: the machine was off ~2 days (Oct 12
+evening - Oct 14), and auto_start_training.ps1 fired on its own at boot with no manual intervention,
+resuming stage 3 epoch 8 mid-epoch at step 1300/1500 rather than redoing it.
+-  The full held-out evaluation and post-training evidence pack remain pending until staged training
+finishes.
+-  Once training stops (by completing all four stages or an intentional stop), run the full
 evaluation/reporting sequence (already chained in resume_pipeline.ps1) and read
 outputs/objectives_consolidated.json / .csv first.
 -  Re-run this script (generate_session_report.py) at any point to refresh this document with current
@@ -542,7 +541,7 @@ reported elsewhere in this document - none of it is aspirational or unverified d
 ==============================================================================
 Appendix: Experiment Values Registry
 ==============================================================================
-Source: data\experiment_values.json, generated 2026-09-30T17:52:27. Every value below is read from a real
+Source: data\experiment_values.json, generated 2026-10-27T14:52:12. Every value below is read from a real
 config/log/output file at generation time; anything not yet computable is marked PENDING, and anything this
 codebase does not implement is marked NOT APPLICABLE, rather than estimated or invented.
 
@@ -931,6 +930,17 @@ epochs completed this run:
  s2_lora | 11 | 6.0838 | 0.5103 | 0.391 | 0.4345 | 0.4593 | 0.6153 | 0.8394
  s2_lora | 12 | 6.1054 | 0.4927 | 0.3869 | 0.4393 | 0.4503 | 0.6027 | 0.8395
  s3_unfreeze | 1 | 6.0046 | 0.4476 | 0.3513 | 0.4431 | 0.4178 | 0.544 | 0.8389
+ s3_unfreeze | 2 | 5.873 | 0.4795 | 0.3702 | 0.4452 | 0.4398 | 0.6 | 0.8451
+ s3_unfreeze | 3 | 5.5191 | 0.5062 | 0.3751 | 0.4359 | 0.4528 | 0.5847 | 0.8555
+ s3_unfreeze | 4 | 5.3217 | 0.5494 | 0.3927 | 0.4157 | 0.4756 | 0.632 | 0.8632
+ s3_unfreeze | 5 | 5.1688 | 0.5772 | 0.3994 | 0.3945 | 0.4873 | 0.6747 | 0.8622
+ s3_unfreeze | 6 | 5.0934 | 0.6065 | 0.4119 | 0.3893 | 0.5047 | 0.6967 | 0.873
+ s3_unfreeze | 7 | 4.8659 | 0.5569 | 0.4008 | 0.4203 | 0.4827 | 0.6453 | 0.8704
+ s3_unfreeze | 8 | 4.8351 | 0.5841 | 0.4212 | 0.4017 | 0.4988 | 0.6633 | 0.871
+ s3_unfreeze | 9 | 4.7282 | 0.5883 | 0.4197 | 0.4173 | 0.5035 | 0.672 | 0.8698
+ s3_unfreeze | 10 | 4.6162 | 0.5293 | 0.4016 | 0.4659 | 0.4783 | 0.5853 | 0.8646
+ s3_unfreeze | 11 | 4.5865 | 0.5898 | 0.4272 | 0.4342 | 0.5099 | 0.67 | 0.8693
+ s3_unfreeze | 12 | 4.6462 | 0.599 | 0.4186 | 0.3984 | 0.5047 | 0.6827 | 0.8725
 checkpoints saved this run:
  stage | epoch
  1 | 1
@@ -951,14 +961,25 @@ checkpoints saved this run:
  2 | 11
  2 | 12
  3 | 1
+ 3 | 2
+ 3 | 3
+ 3 | 4
+ 3 | 5
+ 3 | 6
+ 3 | 7
+ 3 | 8
+ 3 | 9
+ 3 | 10
+ 3 | 11
+ 3 | 12
 last live step:
  stage: 3
- epoch in stage: 2
- step: 300
+ epoch in stage: 13
+ step: 200
  total steps: 1500
- train loss: 5.9884
- throughput img s: 0.59
-monitoring time series file: data/training_monitor.csv (434 rows so far)
+ train loss: 4.4884
+ throughput img s: 0.40
+monitoring time series file: data/training_monitor.csv (939 rows so far)
 learning rate per step: NOT APPLICABLE - not implemented in this codebase (not logged per-step; per-stage
 LRs are in section 6 config)
 14 final dr grading metrics: PENDING - computed after training/evaluation completes (test-set
@@ -1012,6 +1033,6 @@ timm version: 1.0.29
 opencv version: 5.0.0
 python version: 3.14.7
 os: Windows-11-10.0.26200-SP0
-git commit: cf0e1bba1b69f657f0049065880615bfde49c307
-git commit short: cf0e1bb
+git commit: 883b278fe206961544db70b606f3282e2260f7c8
+git commit short: 883b278
 power plan: High performance (switched from Balanced this session)
