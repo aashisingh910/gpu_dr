@@ -900,41 +900,60 @@ def main() -> None:
                               flush=True)
                     continue
                 b = to_device(batch, device)
-                with torch.autocast(device_type=device.type, dtype=amp_dtype,
-                                    enabled=amp_enabled):
-                    out = model(model_inputs(b))
-                    y = b["grade"]
-                    total, terms, per_sample = compute_losses(
-                        out, b, cfg, counts_t, w_xai, model)
+                try:
+                    with torch.autocast(device_type=device.type, dtype=amp_dtype,
+                                        enabled=amp_enabled):
+                        out = model(model_inputs(b))
+                        y = b["grade"]
+                        total, terms, per_sample = compute_losses(
+                            out, b, cfg, counts_t, w_xai, model)
 
-                scaled = total / cfg.train.grad_accum
-                if scaler.is_enabled():
-                    scaler.scale(scaled).backward()
-                else:
-                    scaled.backward()
+                    scaled = total / cfg.train.grad_accum
+                    if scaler.is_enabled():
+                        scaler.scale(scaled).backward()
+                    else:
+                        scaled.backward()
 
-                aux_les_val = aux_xai_val = 0.0
-                if aux_source is not None and step % args.aux_lesion_every == 0:
-                    aux_batch = aux_source.next_batch(args.aux_lesion_batch,
-                                                      cfg.moe.mask_size)
-                    if aux_batch is not None:
-                        ab, a_targets, a_valid = aux_batch
-                        with torch.autocast(device_type=device.type, dtype=amp_dtype,
-                                            enabled=amp_enabled):
-                            aux_out = model(model_inputs(ab))
-                            a_les = lesion_supervision_loss(
-                                aux_out["moe"], a_targets,
-                                (a_targets.amax((2, 3)) > 0.5).float(), valid=a_valid)
-                            a_xai = attribution_consistency_loss(
-                                aux_out["attribution"],
-                                a_targets * a_valid.view(*a_valid.shape, 1, 1))
-                            aux_total = args.aux_lesion_weight * (a_les + a_xai)
-                        aux_scaled = aux_total / cfg.train.grad_accum
-                        if scaler.is_enabled():
-                            scaler.scale(aux_scaled).backward()
-                        else:
-                            aux_scaled.backward()
-                        aux_les_val, aux_xai_val = float(a_les), float(a_xai)
+                    aux_les_val = aux_xai_val = 0.0
+                    if aux_source is not None and step % args.aux_lesion_every == 0:
+                        aux_batch = aux_source.next_batch(args.aux_lesion_batch,
+                                                          cfg.moe.mask_size)
+                        if aux_batch is not None:
+                            ab, a_targets, a_valid = aux_batch
+                            with torch.autocast(device_type=device.type, dtype=amp_dtype,
+                                                enabled=amp_enabled):
+                                aux_out = model(model_inputs(ab))
+                                a_les = lesion_supervision_loss(
+                                    aux_out["moe"], a_targets,
+                                    (a_targets.amax((2, 3)) > 0.5).float(), valid=a_valid)
+                                a_xai = attribution_consistency_loss(
+                                    aux_out["attribution"],
+                                    a_targets * a_valid.view(*a_valid.shape, 1, 1))
+                                aux_total = args.aux_lesion_weight * (a_les + a_xai)
+                            aux_scaled = aux_total / cfg.train.grad_accum
+                            if scaler.is_enabled():
+                                scaler.scale(aux_scaled).backward()
+                            else:
+                                aux_scaled.backward()
+                            aux_les_val, aux_xai_val = float(a_les), float(a_xai)
+                except RuntimeError as e:
+                    # Stage 4 (99.7% of the backbone trainable) runs this
+                    # 8GB card right at its memory ceiling - the deterministic
+                    # per-epoch sample order means an unusually
+                    # memory-hungry batch (e.g. several large lesion masks
+                    # at once) fails at the same step on every retry,
+                    # crashing the whole process and losing everything back
+                    # to the last mid-epoch checkpoint. Dropping just that
+                    # one batch and freeing the allocator's cache costs far
+                    # less than that.
+                    if "out of memory" not in str(e).lower():
+                        raise
+                    opt.zero_grad(set_to_none=True)
+                    torch.cuda.empty_cache()
+                    print(f"  s{si+1}e{ep+1} step {step}/{len(train_ld)} "
+                          f"OOM on this batch - skipped, cache cleared, "
+                          f"continuing", flush=True)
+                    continue
 
                 if (step + 1) % cfg.train.grad_accum == 0:
                     if scaler.is_enabled():

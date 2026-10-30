@@ -20,6 +20,12 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 $env:PYTHONPATH = "src"
+# Reduces CUDA allocator fragmentation - stage 4 (99.7% of the backbone
+# trainable) runs this 8GB card right at its memory ceiling and has been
+# crashing intermittently around step 200-300 of its first epoch. This
+# doesn't touch --batch-size/--grad-accum or anything checkpointed, so it's
+# safe to add on any resume, automatic or manual.
+$env:PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:True"
 $py = ".\.venv\Scripts\python.exe"
 
 function Step {
