@@ -19,6 +19,24 @@
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+
+# Duplicate-process guard - added 2026-10-30 once both the startup and
+# logon triggers fire the same Task Scheduler action, which can now race
+# each other (IgnoreNew on the TASK only stops a second copy of the same
+# scheduled task; it does nothing for a second, independently-launched
+# python.exe). Matches on 03_train.py AND this exact project path, not
+# just "python.exe", so an unrelated Python process elsewhere on the
+# machine is never mistaken for a second training run. Only checks and
+# exits early - never touches an existing process.
+$existing = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match [regex]::Escape($PSScriptRoot) -and $_.CommandLine -match '03_train\.py' }
+if ($existing) {
+    Write-Host "[guard] a 03_train.py process for this project is already running " `
+        "(PID $($existing.ProcessId -join ', ')) - exiting without starting a second copy." `
+        -ForegroundColor Yellow
+    exit 0
+}
+
 $env:PYTHONPATH = "src"
 # Reduces CUDA allocator fragmentation - stage 4 (99.7% of the backbone
 # trainable) runs this 8GB card right at its memory ceiling and has been
@@ -71,19 +89,24 @@ Step "Lesion-expert pretraining (real IDRiD/DDR masks)" @(
     "--image-size", "448"
 )
 
-# batch-size 4 / grad-accum 8 (effective batch 32, matching the project's
-# documented full schedule) + --grad-checkpoint: conservative starting point
-# for an 8GB RTX 5060 running a ViT-Large backbone across a 448px global view
-# plus 6 local crops per sample - the script's own docs call this combination
-# out as the difference between fitting six local crops under a tight memory
-# cap and not. If this still OOMs before the first "[checkpoint] stage 1
-# epoch 1 saved" line appears, lower --batch-size to 2 and raise
-# --grad-accum to 16 and rerun (safe - nothing checkpointed yet).
+# batch-size 2 / grad-accum 16 (effective batch 32, unchanged) + --grad-
+# checkpoint. Stages 1-3 ran at batch-size 4/grad-accum 8 and are fully
+# complete - this only takes effect for stage 4, which has no checkpoint
+# of its own batch-size/grad-accum choice to desync (resume_pipeline.ps1
+# skips any stage already past, si < resume_stage, before ever touching
+# this value). Lowered from 4/8 on 2026-10-30: stage 4 (99.7% of the
+# backbone trainable, vs. 36% in stage 3) runs this 8GB RTX 5060 right at
+# its memory ceiling - it hit a hard crash, a GPU-driver TDR, and a full
+# hang, all within ~2 days, always around step 200-300 of its first
+# epoch (the same deterministic sample order hitting the same memory-
+# hungry batch every retry). This halves peak activation memory per
+# micro-batch while keeping the effective batch and gradient quality
+# identical.
 Step "Staged training (full 5/12/14/14 schedule)" @(
     "-u", "scripts/03_train.py",
     "--stage-epochs", "5,12,14,14", "--patience", "45",
     "--samples-per-epoch", "6000", "--max-val", "1500",
-    "--batch-size", "4", "--grad-accum", "8", "--grad-checkpoint",
+    "--batch-size", "2", "--grad-accum", "16", "--grad-checkpoint",
     "--global-size", "448", "--crop-input", "224", "--n-crops", "6",
     # cfg.train.num_workers defaults to 0 (single-threaded, in-process data
     # loading) - confirmed via nvidia-smi that this starves the GPU (0%, 0%,
