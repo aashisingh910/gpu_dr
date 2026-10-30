@@ -773,13 +773,15 @@ def main() -> None:
         os.replace(tmp_ckpt, ckpt_path)
 
     # How often (in micro-batch steps, the same counter the progress print
-    # uses) to checkpoint within an epoch. 100 out of ~1500 steps/epoch means
-    # roughly 15 saves per epoch, bounding the worst-case lost work from an
-    # interrupted epoch to about a fifteenth of it (~6 min) instead of the
-    # whole ~90-100 minute epoch. Each save costs well under a second on this
-    # disk for a ~1.4GB checkpoint (measured), so the extra I/O is negligible
-    # against a ~2.7s/step training pace.
-    MID_EPOCH_CKPT_EVERY = 100
+    # uses) to checkpoint within an epoch. Lowered from 100 to 25 on
+    # 2026-10-30: stage 4 (99.7% of the backbone trainable, batch-size 2 /
+    # grad-accum 16 after repeated crashes/hangs at batch 4) is running at
+    # roughly 12-20s/step instead of stage 3's ~2.7s/step, so a 100-step
+    # window between saves (previously ~6 min worst case) now risks losing
+    # up to ~30-50 min of an already-slow run. A save still costs well
+    # under a second on this disk (~2.7GB checkpoint), so four times the
+    # save frequency is still negligible against the per-step pace.
+    MID_EPOCH_CKPT_EVERY = 25
 
     for si, stage in enumerate(cfg.train.stages):
         if stop:
