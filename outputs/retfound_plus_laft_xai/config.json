@@ -235,7 +235,7 @@
         "train_alpp": true
       }
     ],
-    "batch_size": 4,
+    "batch_size": 2,
     "weight_decay": 0.02,
     "warmup_frac": 0.1,
     "num_workers": 16,
@@ -244,7 +244,7 @@
     "max_val": null,
     "samples_per_epoch": null,
     "grad_clip": 1.0,
-    "grad_accum": 8,
+    "grad_accum": 16,
     "select_objective": "ordinal",
     "select_weights": {
       "qwk": 0.5,
