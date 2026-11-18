@@ -1,7 +1,7 @@
 Diabetic Retinopathy Pipeline
 Implementation & Session Documentation
 
-Generated: 2026-11-03 13:35:19
+Generated: 2026-11-18 17:11:14
 Machine: DESKTOP-39I5E6Q (Windows 11)
 Project root: C:\Users\HP\Downloads\dr-project-python-fixed\dr-project-python-master
 This document records the work done to take the rebuilt dr/data/ package from an untested checkout to a
@@ -196,20 +196,20 @@ Last log lines:
 COMPLETE - 8 epochs run, best validation Dice 0.1401. Checkpoint: outputs/lesion_pretrain/lesion_encoder.pt
 
 -- 6.3  Staged Training
-IN PROGRESS / RESUMABLE - 31 epoch(s) checkpointed so far.
-Last completed epoch: 31  stage=s3_unfreeze  QWK=0.5786  score=0.5067
-Latest logged training step: stage 4 epoch 1, step 950/3000, loss=4.147, throughput=2.36
+IN PROGRESS / RESUMABLE - 32 epoch(s) checkpointed so far.
+Last completed epoch: 32  stage=s4_full  QWK=0.5932  score=0.4970
+Latest logged training step: stage 4 epoch 1, step 2975/3000, loss=3.930, throughput=1.03
 images/sec.
 
 -- 6.4  Disk / Environment
-Free disk space: 615.5 GB
+Free disk space: 564.6 GB
 GPU: NVIDIA GeForce RTX 5060 (8.5 GB VRAM)
 
 ==============================================================================
 7. Next Steps
 ==============================================================================
--  Training is currently logged at stage 4 epoch 1, step 950/3000. The latest completed epoch is
-s3_unfreeze epoch 14 (run epoch 31); refresh this report after the next epoch completes to capture its
+-  Training is currently logged at stage 4 epoch 1, step 2975/3000. The latest completed epoch is
+s4_full epoch 1 (run epoch 32); refresh this report after the next epoch completes to capture its
 validation metrics.
 -  Task Scheduler boot-trigger fix is applied and confirmed working: the machine was off ~2 days (Oct 12
 evening - Oct 14), and auto_start_training.ps1 fired on its own at boot with no manual intervention,
